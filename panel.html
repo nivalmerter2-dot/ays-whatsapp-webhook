@@ -150,14 +150,11 @@
           (result.failed || 0);
 
       } catch (error) {
-
         durum.innerText =
           "Bağlantı hatası: " + error.message;
-
       }
-
     };
-    sync function loadPendingCustomers() {
+    async function loadPendingCustomers() {
   var container = document.getElementById("pendingCustomers");
 
   try {
