@@ -117,6 +117,22 @@ app.post("/webhook", async (req, res) => {
 app.get("/", (req, res) => {
   res.send("AYS WhatsApp Webhook çalışıyor.");
 });
+app.get("/api/pending-customers", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, phone, profile_name, first_message, first_seen_at
+      FROM pending_customers
+      ORDER BY first_seen_at DESC
+    `);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Bekleyen müşteriler alınamadı:", error);
+    res.status(500).json({
+      error: "Bekleyen müşteriler alınamadı."
+    });
+  }
+});
 
 app.post("/send-campaign", upload.single("image"), async (req, res) => {
   console.log("SEND-CAMPAIGN İSTEĞİ GELDİ");
