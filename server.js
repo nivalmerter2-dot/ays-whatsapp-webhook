@@ -101,12 +101,12 @@ app.post("/webhook", async (req, res) => {
   message?.interactive?.button_reply?.title ||
   "";
 
-const normalizedButtonText = buttonText.toLowerCase();
+const normalizedButtonText = buttonText.toLocalLowerCase("tr-TR");
 
 if (
   normalizedButtonText.includes("stop messages") ||
   normalizedButtonText.includes("إيقاف") ||
-  normalizedButtonText.includes("MESAJ ALMAK İSTEMİYORUM")
+  normalizedButtonText.includes("mesaj almak istemiyorum")
 ) {
   const passiveResult = await pool.query(
     `UPDATE customers
