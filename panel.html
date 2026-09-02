@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AYS WhatsApp Gönderim Paneli</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 760px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .panel {
+      background: white;
+      padding: 30px;
+      border-radius: 14px;
+      box-shadow: 0 4px 18px rgba(0,0,0,.08);
+    }
+    h1 { margin-top: 0; }
+    label {
+      display: block;
+      margin-top: 20px;
+      margin-bottom: 7px;
+      font-weight: bold;
+    }
+    textarea, input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px;
+    }
+    textarea { min-height: 160px; }
+    button {
+      margin-top: 25px;
+      width: 100%;
+      padding: 15px;
+      border: 0;
+      border-radius: 8px;
+      font-size: 17px;
+      cursor: pointer;
+    }
+    #durum { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h1>AYS WhatsApp Gönderim Paneli</h1>
+
+    <label>Ürün görseli</label>
+    <input type="file" id="image" accept="image/*">
+
+    <label>Alıcı telefon numaraları</label>
+    <textarea id="numbers"
+      placeholder="905388933267&#10;905515991234"></textarea>
+
+    <button id="sendButton">WhatsApp Mesajlarını Gönder</button>
+
+    <div id="durum"></div>
+  </div>
+
+  <script>
+    document.getElementById("sendButton").addEventListener("click", async () => {
+      const image = document.getElementById("image").files[0];
+      const numbers = document.getElementById("numbers").value;
+
+      if (!image || !numbers.trim()) {
+        alert("Lütfen görsel ve en az bir telefon numarası seçin.");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("image", image);
+      formData.append("numbers", numbers);
+
+      const durum = document.getElementById("durum");
+      durum.innerText = "Gönderim hazırlanıyor...";
+
+      try {
+        const response = await fetch("/send-campaign", {
+          method: "POST",
+          body: formData
+        });
+
+        const result = await response.json();
+
+        durum.innerText =
+          Gönderilen: ${result.sent || 0} | Hatalı: ${result.failed || 0};
+      } catch (error) {
+        durum.innerText = "Gönderim sırasında hata oluştu.";
+      }
+    });
+  </script>
+</body>
+</html>
