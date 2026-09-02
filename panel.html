@@ -4,92 +4,153 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AYS WhatsApp Gönderim Paneli</title>
+
   <style>
     body {
       font-family: Arial, sans-serif;
-      max-width: 760px;
-      margin: 40px auto;
-      padding: 20px;
       background: #f5f5f5;
+      margin: 0;
+      padding: 40px 20px;
     }
+
     .panel {
+      max-width: 700px;
+      margin: auto;
       background: white;
       padding: 30px;
       border-radius: 14px;
-      box-shadow: 0 4px 18px rgba(0,0,0,.08);
+      box-shadow: 0 4px 18px rgba(0,0,0,0.08);
     }
-    h1 { margin-top: 0; }
+
+    h1 {
+      margin-top: 0;
+    }
+
     label {
       display: block;
-      margin-top: 20px;
-      margin-bottom: 7px;
       font-weight: bold;
+      margin-top: 20px;
+      margin-bottom: 8px;
     }
-    textarea, input {
+
+    input,
+    textarea {
       width: 100%;
       box-sizing: border-box;
       padding: 12px;
     }
-    textarea { min-height: 160px; }
+
+    textarea {
+      min-height: 150px;
+    }
+
     button {
-      margin-top: 25px;
       width: 100%;
       padding: 15px;
-      border: 0;
-      border-radius: 8px;
+      margin-top: 25px;
       font-size: 17px;
       cursor: pointer;
     }
-    #durum { margin-top: 20px; }
+
+    #durum {
+      margin-top: 20px;
+      font-weight: bold;
+    }
   </style>
 </head>
+
 <body>
+
   <div class="panel">
+
     <h1>AYS WhatsApp Gönderim Paneli</h1>
 
     <label>Ürün görseli</label>
-    <input type="file" id="image" accept="image/*">
+    <input
+      type="file"
+      id="image"
+      accept="image/*"
+    >
 
     <label>Alıcı telefon numaraları</label>
-    <textarea id="numbers"
-      placeholder="905388933267&#10;905515991234"></textarea>
 
-    <button type="button" id="sendButton">WhatsApp Mesajlarını Gönder</button>
+    <textarea
+      id="numbers"
+      placeholder="905388933267&#10;905515991234"
+    ></textarea>
+
+    <button
+      type="button"
+      id="sendButton"
+    >
+      WhatsApp Mesajlarını Gönder
+    </button>
 
     <div id="durum"></div>
+
   </div>
 
   <script>
-    document.getElementById("sendButton").addEventListener("click", async () => {
-      const image = document.getElementById("image").files[0];
-      const numbers = document.getElementById("numbers").value;
 
-      if (!image || !numbers.trim()) {
-        alert("Lütfen görsel ve en az bir telefon numarası seçin.");
+    var sendButton = document.getElementById("sendButton");
+    var durum = document.getElementById("durum");
+
+    sendButton.onclick = async function () {
+
+      durum.innerText = "Butona basıldı - gönderim hazırlanıyor...";
+
+      var imageInput = document.getElementById("image");
+      var numbersInput = document.getElementById("numbers");
+
+      var image = imageInput.files[0];
+      var numbers = numbersInput.value;
+
+      if (!image) {
+        durum.innerText = "Lütfen bir görsel seçin.";
         return;
       }
 
-      const formData = new FormData();
+      if (!numbers.trim()) {
+        durum.innerText = "Lütfen en az bir telefon numarası girin.";
+        return;
+      }
+
+      var formData = new FormData();
+
       formData.append("image", image);
       formData.append("numbers", numbers);
 
-      const durum = document.getElementById("durum");
-      durum.innerText = "Gönderim hazırlanıyor...";
-
       try {
-        const response = await fetch("/send-campaign", {
+
+        var response = await fetch("/send-campaign", {
           method: "POST",
           body: formData
         });
 
-        const result = await response.json();
+        var result = await response.json();
+
+        if (!response.ok) {
+          durum.innerText =
+            "Hata: " + (result.error || "Gönderim başarısız.");
+          return;
+        }
 
         durum.innerText =
-          "Gönderilen":+{result.sent || 0}+"| Hatalı:"+{result.failed || 0};
+          "Gönderilen: " +
+          (result.sent || 0) +
+          " | Hatalı: " +
+          (result.failed || 0);
+
       } catch (error) {
-        durum.innerText = "Gönderim sırasında hata oluştu.";
+
+        durum.innerText =
+          "Bağlantı hatası: " + error.message;
+
       }
-    });
+
+    };
+
   </script>
+
 </body>
 </html>
