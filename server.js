@@ -106,7 +106,7 @@ const normalizedButtonText = buttonText.toLowerCase();
 if (
   normalizedButtonText.includes("stop messages") ||
   normalizedButtonText.includes("إيقاف") ||
-  normalizedButtonText.includes("mesaj almak istemiyorum")
+  normalizedButtonText.includes("MESAJ ALMAK İSTEMİYORUM")
 ) {
   const passiveResult = await pool.query(
     `UPDATE customers
