@@ -421,6 +421,37 @@ app.post("/send-campaign", upload.single("image"), async (req, res) => {
 
     // Her numaraya ayrı WhatsApp API isteği
     for (const to of numbers) {
+      const customerResult = await pool.query(
+  `SELECT customer_group, status
+   FROM customers
+   WHERE phone = $1
+   LIMIT 1`,
+  [to]
+);
+
+if (
+  customerResult.rows.length === 0 ||
+  customerResult.rows[0].status !== "active"
+) {
+  failed++;
+  errors.push({
+    to: to,
+    error: "Müşteri bulunamadı veya pasif."
+  });
+  continue;
+}
+
+const customerGroup = customerResult.rows[0].customer_group;
+
+const templateName =
+  customerGroup === "Yabancı"
+    ? "urun_pazarlama_yabanci"
+    : "urun_pazarlama_yerli";
+
+const languageCode =
+  customerGroup === "Yabancı"
+    ? "en"
+    : "tr";
       const messageResponse = await fetch(
         `https://graph.facebook.com/v26.0/${PHONE_NUMBER_ID}/messages`,
         {
@@ -434,9 +465,9 @@ app.post("/send-campaign", upload.single("image"), async (req, res) => {
             to: to,
             type: "template",
             template: {
-              name: "urun_pazarlama_yerli",
+              name: templateName,
               language: {
-                code: "tr"
+                code: languageCode
               },
               components: [
                 {
