@@ -77,11 +77,11 @@ app.post("/send-campaign", upload.single("image"), async (req, res) => {
     mediaForm.append("file", imageBlob, req.file.originalname);
 
     const mediaResponse = await fetch(
-      https://graph.facebook.com/v26.0/${PHONE_NUMBER_ID}/media,
+      `https://graph.facebook.com/v26.0/${PHONE_NUMBER_ID}/media`,
       {
         method: "POST",
         headers: {
-          Authorization: Bearer ${META_TOKEN}
+          Authorization: `Bearer ${META_TOKEN}`
         },
         body: mediaForm
       }
@@ -109,11 +109,11 @@ app.post("/send-campaign", upload.single("image"), async (req, res) => {
     // Her numaraya ayrı WhatsApp API isteği
     for (const to of numbers) {
       const messageResponse = await fetch(
-        https://graph.facebook.com/v26.0/${PHONE_NUMBER_ID}/messages,
+        `https://graph.facebook.com/v26.0/${PHONE_NUMBER_ID}/messages`,
         {
           method: "POST",
           headers: {
-            Authorization: Bearer ${META_TOKEN},
+            Authorization: `Bearer ${META_TOKEN}`,
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
