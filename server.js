@@ -1,5 +1,11 @@
 const express = require("express");
 const multer = require("multer");
+const { Pool } = require("pg");
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: false
+});
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -10,6 +16,34 @@ const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 
 const META_TOKEN = process.env.META_TOKEN;
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
+
+async function initDatabase() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS customers (
+      id SERIAL PRIMARY KEY,
+      phone VARCHAR(30) UNIQUE NOT NULL,
+      representative_id VARCHAR(10),
+      customer_group VARCHAR(20),
+      status VARCHAR(20) NOT NULL DEFAULT 'active',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS pending_customers (
+      id SERIAL PRIMARY KEY,
+      phone VARCHAR(30) UNIQUE NOT NULL,
+      first_message TEXT,
+      profile_name VARCHAR(255),
+      first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  console.log("Veritabanı tabloları hazır.");
+}
+
+initDatabase().catch((error) => {
+  console.error("Veritabanı başlatma hatası:", error);
+});
 
 // Meta webhook doğrulaması
 app.get("/webhook", (req, res) => {
