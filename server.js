@@ -133,7 +133,83 @@ app.get("/api/pending-customers", async (req, res) => {
     });
   }
 });
+app.post("/api/approve-customer", async (req, res) => {
+  const { id, representative_id, customer_group } = req.body;
 
+  if (!id || !representative_id || !customer_group) {
+    return res.status(400).json({
+      error: "Müşteri, temsilci ve grup bilgisi gerekli."
+    });
+  }
+
+  if (!["T1", "T2", "T3", "T4"].includes(representative_id)) {
+    return res.status(400).json({
+      error: "Geçersiz müşteri temsilcisi."
+    });
+  }
+
+  if (!["Yerli", "Yabancı"].includes(customer_group)) {
+    return res.status(400).json({
+      error: "Geçersiz müşteri grubu."
+    });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const pendingResult = await client.query(
+      `SELECT phone
+       FROM pending_customers
+       WHERE id = $1
+       FOR UPDATE`,
+      [id]
+    );
+
+    if (pendingResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({
+        error: "Bekleyen müşteri bulunamadı."
+      });
+    }
+
+    const phone = pendingResult.rows[0].phone;
+
+    await client.query(
+      `INSERT INTO customers
+       (phone, representative_id, customer_group, status)
+       VALUES ($1, $2, $3, 'active')
+       ON CONFLICT (phone)
+       DO UPDATE SET
+         representative_id = EXCLUDED.representative_id,
+         customer_group = EXCLUDED.customer_group,
+         updated_at = CURRENT_TIMESTAMP`,
+      [phone, representative_id, customer_group]
+    );
+
+    await client.query(
+      "DELETE FROM pending_customers WHERE id = $1",
+      [id]
+    );
+
+    await client.query("COMMIT");
+
+    res.json({
+      success: true,
+      phone: phone
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Müşteri portföye eklenemedi:", error);
+
+    res.status(500).json({
+      error: "Müşteri portföye eklenemedi."
+    });
+  } finally {
+    client.release();
+  }
+});
 app.post("/send-campaign", upload.single("image"), async (req, res) => {
   console.log("SEND-CAMPAIGN İSTEĞİ GELDİ");
   try {
