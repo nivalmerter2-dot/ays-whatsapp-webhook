@@ -85,7 +85,7 @@ app.post("/webhook", async (req, res) => {
       message?.text?.body ||
       message?.button?.text ||
       message?.interactive?.button_reply?.title ||
-      [${message.type || "unknown"}];
+      `[${message.type || "unknown"}]`;
 
     // Numara zaten onaylı müşteri mi?
     const existingCustomer = await pool.query(
