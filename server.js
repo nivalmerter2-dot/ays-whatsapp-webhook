@@ -60,9 +60,58 @@ app.get("/webhook", (req, res) => {
 });
 
 // WhatsApp'tan gelen mesajlar ve buton yanıtları
-app.post("/webhook", (req, res) => {
+app.post("/webhook", async (req, res) => {
   console.log("WhatsApp webhook:", JSON.stringify(req.body, null, 2));
+
+  // Meta'ya hemen 200 cevabı ver
   res.sendStatus(200);
+
+  try {
+    const value =
+      req.body?.entry?.[0]?.changes?.[0]?.value;
+
+    const message = value?.messages?.[0];
+
+    // Teslimat bildirimi gibi bir webhook ise müşteri kaydı oluşturma
+    if (!message?.from) {
+      return;
+    }
+
+    const phone = message.from;
+    const profileName =
+      value?.contacts?.[0]?.profile?.name || null;
+
+    const firstMessage =
+      message?.text?.body ||
+      message?.button?.text ||
+      message?.interactive?.button_reply?.title ||
+      [${message.type || "unknown"}];
+
+    // Numara zaten onaylı müşteri mi?
+    const existingCustomer = await pool.query(
+      "SELECT id FROM customers WHERE phone = $1 LIMIT 1",
+      [phone]
+    );
+
+    if (existingCustomer.rows.length > 0) {
+      console.log("Kayıtlı müşteri mesaj gönderdi:", phone);
+      return;
+    }
+
+    // Değilse Bekleyen Yeni Müşteriler'e ekle.
+    // Aynı numara daha önce eklendiyse tekrar kayıt oluşturma.
+    await pool.query(
+      `INSERT INTO pending_customers
+       (phone, first_message, profile_name)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (phone) DO NOTHING`,
+      [phone, firstMessage, profileName]
+    );
+
+    console.log("Bekleyen yeni müşteri kaydedildi:", phone);
+  } catch (error) {
+    console.error("Webhook müşteri kayıt hatası:", error);
+  }
 });
 
 app.get("/", (req, res) => {
