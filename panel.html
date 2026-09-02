@@ -54,7 +54,7 @@
     <textarea id="numbers"
       placeholder="905388933267&#10;905515991234"></textarea>
 
-    <button id="sendButton">WhatsApp Mesajlarını Gönder</button>
+    <button type="button" id="sendButton">WhatsApp Mesajlarını Gönder</button>
 
     <div id="durum"></div>
   </div>
@@ -85,7 +85,7 @@
         const result = await response.json();
 
         durum.innerText =
-          "Gönderilen": ${result.sent || 0} "| Hatalı:" ${result.failed || 0};
+          "Gönderilen":+{result.sent || 0}+"| Hatalı:"+{result.failed || 0};
       } catch (error) {
         durum.innerText = "Gönderim sırasında hata oluştu.";
       }
