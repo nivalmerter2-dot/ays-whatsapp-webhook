@@ -1,10 +1,15 @@
 const express = require("express");
+const multer = require("multer");
 
 const app = express();
+const upload = multer({ storage: multer.memoryStorage() });
 app.use(express.json());
 app.use(express.static(__dirname));
 
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
+
+const META_TOKEN = process.env.META_TOKEN;
+const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 
 // Meta webhook doğrulaması
 app.get("/webhook", (req, res) => {
@@ -28,6 +33,145 @@ app.post("/webhook", (req, res) => {
 
 app.get("/", (req, res) => {
   res.send("AYS WhatsApp Webhook çalışıyor.");
+});
+
+app.post("/send-campaign", upload.single("image"), async (req, res) => {
+  try {
+    if (!META_TOKEN || !PHONE_NUMBER_ID) {
+      return res.status(500).json({
+        error: "Meta ayarları eksik.",
+        sent: 0,
+        failed: 0
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        error: "Görsel seçilmedi.",
+        sent: 0,
+        failed: 0
+      });
+    }
+
+    const numbers = (req.body.numbers || "")
+      .split(/[\n,;]+/)
+      .map(number => number.replace(/\D/g, ""))
+      .filter(Boolean);
+
+    if (numbers.length === 0) {
+      return res.status(400).json({
+        error: "Alıcı numarası bulunamadı.",
+        sent: 0,
+        failed: 0
+      });
+    }
+
+    // Görseli WhatsApp'a yükle
+    const mediaForm = new FormData();
+    const imageBlob = new Blob(
+      [req.file.buffer],
+      { type: req.file.mimetype }
+    );
+
+    mediaForm.append("messaging_product", "whatsapp");
+    mediaForm.append("file", imageBlob, req.file.originalname);
+
+    const mediaResponse = await fetch(
+      https://graph.facebook.com/v26.0/${PHONE_NUMBER_ID}/media,
+      {
+        method: "POST",
+        headers: {
+          Authorization: Bearer ${META_TOKEN}
+        },
+        body: mediaForm
+      }
+    );
+
+    const mediaData = await mediaResponse.json();
+
+    if (!mediaResponse.ok || !mediaData.id) {
+      console.error("Media upload error:", mediaData);
+
+      return res.status(500).json({
+        error: "Görsel Meta'ya yüklenemedi.",
+        details: mediaData,
+        sent: 0,
+        failed: numbers.length
+      });
+    }
+
+    const mediaId = mediaData.id;
+
+    let sent = 0;
+    let failed = 0;
+    const errors = [];
+
+    // Her numaraya ayrı WhatsApp API isteği
+    for (const to of numbers) {
+      const messageResponse = await fetch(
+        https://graph.facebook.com/v26.0/${PHONE_NUMBER_ID}/messages,
+        {
+          method: "POST",
+          headers: {
+            Authorization: Bearer ${META_TOKEN},
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            to: to,
+            type: "template",
+            template: {
+              name: "urun_pazarlama_yerli",
+              language: {
+                code: "tr"
+              },
+              components: [
+                {
+                  type: "header",
+                  parameters: [
+                    {
+                      type: "image",
+                      image: {
+                        id: mediaId
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          })
+        }
+      );
+
+      const messageData = await messageResponse.json();
+
+      if (messageResponse.ok) {
+        sent++;
+      } else {
+        failed++;
+        errors.push({
+          to: to,
+          error: messageData
+        });
+      }
+    }
+
+    res.json({
+      success: failed === 0,
+      sent: sent,
+      failed: failed,
+      errors: errors
+    });
+
+  } catch (error) {
+    console.error("Campaign error:", error);
+
+    res.status(500).json({
+      error: error.message,
+      sent: 0,
+      failed: 0
+    });
+  }
 });
 
 app.get("/privacy", (req, res) => {
