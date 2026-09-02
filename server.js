@@ -157,6 +157,43 @@ app.get("/api/customers", async (req, res) => {
     });
   }
 });
+app.post("/api/customer-status", async (req, res) => {
+  const { id, status } = req.body;
+
+  if (!id || !["active", "passive"].includes(status)) {
+    return res.status(400).json({
+      error: "Geçersiz müşteri veya durum bilgisi."
+    });
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE customers
+       SET status = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING id, phone, status`,
+      [status, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Müşteri bulunamadı."
+      });
+    }
+
+    res.json({
+      success: true,
+      customer: result.rows[0]
+    });
+  } catch (error) {
+    console.error("Müşteri durumu değiştirilemedi:", error);
+
+    res.status(500).json({
+      error: "Müşteri durumu değiştirilemedi."
+    });
+  }
+});
 app.post("/api/approve-customer", async (req, res) => {
   const { id, representative_id, customer_group } = req.body;
 
