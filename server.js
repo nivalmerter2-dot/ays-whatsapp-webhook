@@ -133,6 +133,30 @@ app.get("/api/pending-customers", async (req, res) => {
     });
   }
 });
+app.get("/api/customers", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        id,
+        phone,
+        representative_id,
+        customer_group,
+        status,
+        created_at,
+        updated_at
+      FROM customers
+      ORDER BY created_at DESC
+    `);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Müşteri portföyü alınamadı:", error);
+
+    res.status(500).json({
+      error: "Müşteri portföyü alınamadı."
+    });
+  }
+});
 app.post("/api/approve-customer", async (req, res) => {
   const { id, representative_id, customer_group } = req.body;
 
