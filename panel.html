@@ -85,7 +85,7 @@
         const result = await response.json();
 
         durum.innerText =
-          Gönderilen: ${result.sent || 0} | Hatalı: ${result.failed || 0};
+          "Gönderilen": ${result.sent || 0} "| Hatalı:" ${result.failed || 0};
       } catch (error) {
         durum.innerText = "Gönderim sırasında hata oluştu.";
       }
