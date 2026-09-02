@@ -1,0 +1,24 @@
+{
+  "representatives": [
+    {
+      "id": "T1",
+      "name": "Ali Merter",
+      "phone": "905388933267"
+    },
+    {
+      "id": "T2",
+      "name": "Harun Merter",
+      "phone": "905327294696"
+    },
+    {
+      "id": "T3",
+      "name": "Muhammed Merter",
+      "phone": "905323574696"
+    },
+    {
+      "id": "T4",
+      "name": "İshak Merter",
+      "phone": "905466673431"
+    }
+  ]
+}
