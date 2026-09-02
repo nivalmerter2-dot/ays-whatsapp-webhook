@@ -37,7 +37,15 @@ async function initDatabase() {
       first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
-
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS rejected_customers (
+    id SERIAL PRIMARY KEY,
+    phone VARCHAR(30) UNIQUE NOT NULL,
+    profile_name VARCHAR(255),
+    first_message TEXT,
+    rejected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+`);
   console.log("Veritabanı tabloları hazır.");
 }
 
@@ -97,7 +105,15 @@ app.post("/webhook", async (req, res) => {
       console.log("Kayıtlı müşteri mesaj gönderdi:", phone);
       return;
     }
+const rejectedCustomer = await pool.query(
+  "SELECT id FROM rejected_customers WHERE phone = $1 LIMIT 1",
+  [phone]
+);
 
+if (rejectedCustomer.rows.length > 0) {
+  console.log("Reddedilmiş numara tekrar yazdı:", phone);
+  return;
+}
     // Değilse Bekleyen Yeni Müşteriler'e ekle.
     // Aynı numara daha önce eklendiyse tekrar kayıt oluşturma.
     await pool.query(
@@ -131,6 +147,66 @@ app.get("/api/pending-customers", async (req, res) => {
     res.status(500).json({
       error: "Bekleyen müşteriler alınamadı."
     });
+  }
+});
+app.post("/api/reject-customer", async (req, res) => {
+  const { id } = req.body;
+
+  if (!id) {
+    return res.status(400).json({
+      error: "Müşteri bilgisi gerekli."
+    });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const pendingResult = await client.query(
+      `SELECT phone, profile_name, first_message
+       FROM pending_customers
+       WHERE id = $1
+       FOR UPDATE`,
+      [id]
+    );
+
+    if (pendingResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({
+        error: "Bekleyen müşteri bulunamadı."
+      });
+    }
+
+    const customer = pendingResult.rows[0];
+
+    await client.query(
+      `INSERT INTO rejected_customers
+       (phone, profile_name, first_message)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (phone) DO NOTHING`,
+      [customer.phone, customer.profile_name, customer.first_message]
+    );
+
+    await client.query(
+      "DELETE FROM pending_customers WHERE id = $1",
+      [id]
+    );
+
+    await client.query("COMMIT");
+
+    res.json({
+      success: true
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Müşteri reddedilemedi:", error);
+
+    res.status(500).json({
+      error: "Müşteri reddedilemedi."
+    });
+  } finally {
+    client.release();
   }
 });
 app.get("/api/customers", async (req, res) => {
