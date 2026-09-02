@@ -36,6 +36,7 @@ app.get("/", (req, res) => {
 });
 
 app.post("/send-campaign", upload.single("image"), async (req, res) => {
+  console.log("SEND-CAMPAIGN İSTEĞİ GELDİ");
   try {
     if (!META_TOKEN || !PHONE_NUMBER_ID) {
       return res.status(500).json({
