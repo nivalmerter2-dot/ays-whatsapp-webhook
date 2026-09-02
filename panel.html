@@ -174,20 +174,79 @@
     var html = "";
 
     customers.forEach(function (customer) {
-      html +=
-        "<div style='padding:15px; margin-bottom:12px; border:1px solid #ddd; border-radius:10px;'>" +
-        "<strong>" + (customer.profile_name || "İsimsiz Müşteri") + "</strong><br>" +
-        "Telefon: " + customer.phone + "<br>" +
-        "İlk mesaj: " + (customer.first_message || "-") +
-        "</div>";
-    });
+  html +=
+    "<div style='padding:15px; margin-bottom:12px; border:1px solid #ddd; border-radius:10px;'>" +
+    "<strong>" + (customer.profile_name || "İsimsiz Müşteri") + "</strong><br>" +
+    "Telefon: " + customer.phone + "<br>" +
+    "İlk mesaj: " + (customer.first_message || "-") + "<br><br>" +
+
+    "<label>Temsilci</label>" +
+    "<select id='rep-" + customer.id + "' style='width:100%; padding:10px; margin-bottom:10px;'>" +
+      "<option value=''>Temsilci seçin</option>" +
+      "<option value='T1'>Ali Merter</option>" +
+      "<option value='T2'>Harun Merter</option>" +
+      "<option value='T3'>Muhammed Merter</option>" +
+      "<option value='T4'>İshak Merter</option>" +
+    "</select>" +
+
+    "<label>Grup</label>" +
+    "<select id='group-" + customer.id + "' style='width:100%; padding:10px; margin-bottom:10px;'>" +
+      "<option value=''>Grup seçin</option>" +
+      "<option value='Yerli'>Yerli</option>" +
+      "<option value='Yabancı'>Yabancı</option>" +
+    "</select>" +
+
+    "<button type='button' onclick='approveCustomer(" + customer.id + ")'>" +
+      "PORTFÖYE EKLE" +
+    "</button>" +
+    "</div>";
+});
 
     container.innerHTML = html;
   } catch (error) {
     container.innerHTML = "Bekleyen müşteriler yüklenirken bağlantı hatası oluştu.";
   }
 }
+async function approveCustomer(id) {
+  var representative = document.getElementById("rep-" + id).value;
+  var group = document.getElementById("group-" + id).value;
 
+  if (!representative) {
+    alert("Lütfen müşteri temsilcisini seçin.");
+    return;
+  }
+
+  if (!group) {
+    alert("Lütfen Yerli veya Yabancı grubunu seçin.");
+    return;
+  }
+
+  try {
+    var response = await fetch("/api/approve-customer", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        id: id,
+        representative_id: representative,
+        customer_group: group
+      })
+    });
+
+    var result = await response.json();
+
+    if (!response.ok) {
+      alert(result.error || "Müşteri portföye eklenemedi.");
+      return;
+    }
+
+    alert("Müşteri portföye eklendi.");
+    await loadPendingCustomers();
+  } catch (error) {
+    alert("Bağlantı hatası: " + error.message);
+  }
+}
 loadPendingCustomers();
 
   </script>
