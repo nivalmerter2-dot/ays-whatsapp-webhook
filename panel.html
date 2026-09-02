@@ -97,7 +97,13 @@
     Bekleyen müşteriler yükleniyor...
   </div>
 </div>
+<div class="panel" style="margin-top: 25px;">
+  <h1>Müşteri Portföyü</h1>
 
+  <div id="customerPortfolio">
+    Müşteri portföyü yükleniyor...
+  </div>
+</div>
   <script>
 
     var sendButton = document.getElementById("sendButton");
@@ -247,8 +253,55 @@ async function approveCustomer(id) {
     alert("Bağlantı hatası: " + error.message);
   }
 }
-loadPendingCustomers();
+async function loadCustomerPortfolio() {
+  var container = document.getElementById("customerPortfolio");
 
+  try {
+    var response = await fetch("/api/customers");
+    var customers = await response.json();
+
+    if (!response.ok) {
+      container.innerHTML = "Müşteri portföyü yüklenemedi.";
+      return;
+    }
+
+    if (customers.length === 0) {
+      container.innerHTML = "Henüz portföye eklenmiş müşteri yok.";
+      return;
+    }
+
+    var representativeNames = {
+      T1: "Ali Merter",
+      T2: "Harun Merter",
+      T3: "Muhammed Merter",
+      T4: "İshak Merter"
+    };
+
+    var html = "";
+
+    customers.forEach(function (customer) {
+      var representativeName =
+        representativeNames[customer.representative_id] || customer.representative_id;
+
+      var statusText =
+        customer.status === "active" ? "🟢 Aktif" : "🔴 Pasif";
+
+      html +=
+        "<div style='padding:15px; margin-bottom:12px; border:1px solid #ddd; border-radius:10px;'>" +
+        "<strong>" + customer.phone + "</strong><br>" +
+        "Temsilci: " + representativeName + "<br>" +
+        "Grup: " + customer.customer_group + "<br>" +
+        "Durum: " + statusText +
+        "</div>";
+    });
+
+    container.innerHTML = html;
+  } catch (error) {
+    container.innerHTML = "Müşteri portföyü yüklenirken bağlantı hatası oluştu.";
+  }
+}
+    loadPendingCustomers();
+    loadCustomerPortfolio();
   </script>
 
 </body>
