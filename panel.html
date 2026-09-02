@@ -285,19 +285,53 @@ async function loadCustomerPortfolio() {
 
       var statusText =
         customer.status === "active" ? "🟢 Aktif" : "🔴 Pasif";
+      var newStatus =
+  customer.status === "active" ? "passive" : "active";
 
+var buttonText =
+  customer.status === "active" ? "PASİFE AL" : "YENİDEN AKTİFLEŞTİR";
+        
       html +=
         "<div style='padding:15px; margin-bottom:12px; border:1px solid #ddd; border-radius:10px;'>" +
         "<strong>" + customer.phone + "</strong><br>" +
         "Temsilci: " + representativeName + "<br>" +
         "Grup: " + customer.customer_group + "<br>" +
-        "Durum: " + statusText +
-        "</div>";
+        "Durum: " + statusText + "<br><br>" +
+"<button type='button' onclick=\"changeCustomerStatus(" +
+customer.id + ", '" + newStatus + "')\">" +
+buttonText +
+"</button>" +
+"</div>";
     });
 
     container.innerHTML = html;
   } catch (error) {
     container.innerHTML = "Müşteri portföyü yüklenirken bağlantı hatası oluştu.";
+  }
+}
+async function changeCustomerStatus(id, newStatus) {
+  try {
+    var response = await fetch("/api/customer-status", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        id: id,
+        status: newStatus
+      })
+    });
+
+    var result = await response.json();
+
+    if (!response.ok) {
+      alert(result.error || "Müşteri durumu değiştirilemedi.");
+      return;
+    }
+
+    await loadCustomerPortfolio();
+  } catch (error) {
+    alert("Bağlantı hatası: " + error.message);
   }
 }
     loadPendingCustomers();
