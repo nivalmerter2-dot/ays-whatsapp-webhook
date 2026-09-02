@@ -205,6 +205,9 @@
     "<button type='button' onclick='approveCustomer(" + customer.id + ")'>" +
       "PORTFÖYE EKLE" +
     "</button>" +
+    "<button type='button' onclick='rejectCustomer(" + customer.id + ")' style='margin-top:8px;'>" +
+"SPAM / REDDET" +
+"</button>" +
     "</div>";
 });
 
@@ -253,7 +256,40 @@ async function approveCustomer(id) {
     alert("Bağlantı hatası: " + error.message);
   }
 }
-async function loadCustomerPortfolio() {
+async function rejectCustomer(id) {
+  var confirmed = confirm(
+    "Bu müşteriyi SPAM / REDDET listesine almak istediğinize emin misiniz?"
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    var response = await fetch("/api/reject-customer", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        id: id
+      })
+    });
+
+    var result = await response.json();
+
+    if (!response.ok) {
+      alert(result.error || "Müşteri reddedilemedi.");
+      return;
+    }
+
+    alert("Müşteri SPAM / REDDET listesine alındı.");
+    await loadPendingCustomers();
+  } catch (error) {
+    alert("Bağlantı hatası: " + error.message);
+  }
+}
+    async function loadCustomerPortfolio() {
   var container = document.getElementById("customerPortfolio");
 
   try {
