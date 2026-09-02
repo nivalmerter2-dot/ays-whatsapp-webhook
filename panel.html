@@ -89,6 +89,14 @@
     <div id="durum"></div>
 
   </div>
+ 
+  <div class="panel" style="margin-top: 25px;">
+  <h1>Bekleyen Yeni Müşteriler</h1>
+
+  <div id="pendingCustomers">
+    Bekleyen müşteriler yükleniyor...
+  </div>
+</div>
 
   <script>
 
@@ -149,6 +157,41 @@
       }
 
     };
+    sync function loadPendingCustomers() {
+  var container = document.getElementById("pendingCustomers");
+
+  try {
+    var response = await fetch("/api/pending-customers");
+    var customers = await response.json();
+
+    if (!response.ok) {
+      container.innerHTML = "Bekleyen müşteriler yüklenemedi.";
+      return;
+    }
+
+    if (customers.length === 0) {
+      container.innerHTML = "Bekleyen yeni müşteri yok.";
+      return;
+    }
+
+    var html = "";
+
+    customers.forEach(function (customer) {
+      html +=
+        "<div style='padding:15px; margin-bottom:12px; border:1px solid #ddd; border-radius:10px;'>" +
+        "<strong>" + (customer.profile_name || "İsimsiz Müşteri") + "</strong><br>" +
+        "Telefon: " + customer.phone + "<br>" +
+        "İlk mesaj: " + (customer.first_message || "-") +
+        "</div>";
+    });
+
+    container.innerHTML = html;
+  } catch (error) {
+    container.innerHTML = "Bekleyen müşteriler yüklenirken bağlantı hatası oluştu.";
+  }
+}
+
+loadPendingCustomers();
 
   </script>
 
