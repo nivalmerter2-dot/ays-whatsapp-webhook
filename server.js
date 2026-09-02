@@ -101,7 +101,7 @@ app.post("/webhook", async (req, res) => {
   message?.interactive?.button_reply?.title ||
   "";
 
-const normalizedButtonText = buttonText.toLocalLowerCase("tr-TR");
+const normalizedButtonText = buttonText.toLocaleLowerCase("tr-TR");
 
 if (
   buttonText === "MESAJ ALMAK İSTEMİYORUM" ||
