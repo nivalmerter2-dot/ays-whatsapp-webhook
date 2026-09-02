@@ -372,6 +372,10 @@ async function changeCustomerStatus(id, newStatus) {
 }
     loadPendingCustomers();
     loadCustomerPortfolio();
+    
+    setInterval(function () {
+  loadPendingCustomers();
+}, 5000);
   </script>
 
 </body>
