@@ -95,6 +95,35 @@ app.post("/webhook", async (req, res) => {
       message?.interactive?.button_reply?.title ||
       `[${message.type || "unknown"}]`;
 
+    const buttonText =
+  message?.button?.text ||
+  message?.button?.payload ||
+  message?.interactive?.button_reply?.title ||
+  "";
+
+const normalizedButtonText = buttonText.toLowerCase();
+
+if (
+  normalizedButtonText.includes("stop messages") ||
+  normalizedButtonText.includes("إيقاف")
+) {
+  const passiveResult = await pool.query(
+    `UPDATE customers
+     SET status = 'passive',
+         updated_at = CURRENT_TIMESTAMP
+     WHERE phone = $1
+     RETURNING id, phone`,
+    [phone]
+  );
+
+  if (passiveResult.rows.length > 0) {
+    console.log("Müşteri STOP butonuyla pasife alındı:", phone);
+  } else {
+    console.log("STOP butonuna basan numara portföyde bulunamadı:", phone);
+  }
+
+  return;
+}
     // Numara zaten onaylı müşteri mi?
     const existingCustomer = await pool.query(
       "SELECT id FROM customers WHERE phone = $1 LIMIT 1",
