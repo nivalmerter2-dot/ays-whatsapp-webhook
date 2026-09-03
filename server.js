@@ -872,7 +872,74 @@ app.get("/privacy", (req, res) => {
     </html>
   `);
 });
+function isBusinessHoursTurkey() {
+  const now = new Date();
 
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Istanbul",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).formatToParts(now);
+
+  const weekday = parts.find(p => p.type === "weekday").value;
+  const hour = Number(parts.find(p => p.type === "hour").value);
+  const minute = Number(parts.find(p => p.type === "minute").value);
+
+  const currentMinutes = hour * 60 + minute;
+
+  // Pazar kapalı
+  if (weekday === "Sun") {
+    return false;
+  }
+
+  // Cumartesi 09:00 - 16:00
+  if (weekday === "Sat") {
+    return currentMinutes >= 9 * 60 &&
+           currentMinutes < 16 * 60;
+  }
+
+  // Pazartesi - Cuma 09:00 - 21:00
+  return currentMinutes >= 9 * 60 &&
+         currentMinutes < 21 * 60;
+}
+let wasOutsideBusinessHours = true;
+
+async function runT1NotificationScheduler() {
+  const isOpen = isBusinessHoursTurkey();
+
+  if (!isOpen) {
+    wasOutsideBusinessHours = true;
+    return;
+  }
+
+  const now = new Date();
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Istanbul",
+    minute: "2-digit"
+  }).formatToParts(now);
+
+  const minute = Number(
+    parts.find(p => p.type === "minute").value
+  );
+
+  // Mesai yeni başladıysa veya servis mesai içinde yeni uyandıysa
+  // bekleyen talepleri hemen gönder.
+  if (wasOutsideBusinessHours) {
+    wasOutsideBusinessHours = false;
+    await sendPendingT1Notifications();
+    return;
+  }
+
+  // Sonraki bildirimler her :00 ve :30'da.
+  if (minute === 0 || minute === 30) {
+    await sendPendingT1Notifications();
+  }
+}
+
+setInterval(runT1NotificationScheduler, 60 * 1000);
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Webhook ${PORT} portunda çalışıyor.`);
