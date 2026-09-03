@@ -29,7 +29,7 @@ async function sendNtfyT1(message, title = "AYS Müşteri Bildirimi") {
       {
         method: "POST",
         headers: {
-          "Title": title,
+          "Title": "AYS - Yeni Musteri Talepleri",
           "Priority": "high",
           "Tags": "telephone_receiver"
         },
