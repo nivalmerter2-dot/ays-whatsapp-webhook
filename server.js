@@ -168,6 +168,43 @@ await pool.query(
 
   return;
 }
+    if (buttonText === "MÜŞTERİ TEMSİLCİSİNE ULAŞ") {
+  const contactCustomerResult = await pool.query(
+    `SELECT id, phone, customer_name, representative_id
+     FROM customers
+     WHERE phone = $1
+     LIMIT 1`,
+    [phone]
+  );
+
+  if (contactCustomerResult.rows.length > 0) {
+    const contactCustomer = contactCustomerResult.rows[0];
+
+    await pool.query(
+      `INSERT INTO contact_requests
+       (customer_id, phone, customer_name, representative_id)
+       VALUES ($1, $2, $3, $4)`,
+      [
+        contactCustomer.id,
+        contactCustomer.phone,
+        contactCustomer.customer_name,
+        contactCustomer.representative_id
+      ]
+    );
+
+    console.log(
+      "Müşteri temsilci iletişim talebi kaydedildi:",
+      phone
+    );
+  } else {
+    console.log(
+      "Temsilciye ulaşmak isteyen numara portföyde bulunamadı:",
+      phone
+    );
+  }
+
+  return;
+}
     // Numara zaten onaylı müşteri mi?
     const existingCustomer = await pool.query(
       "SELECT id FROM customers WHERE phone = $1 LIMIT 1",
