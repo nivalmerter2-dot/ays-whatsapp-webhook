@@ -305,11 +305,11 @@ app.post("/api/customer-status", async (req, res) => {
   }
 });
 app.post("/api/approve-customer", async (req, res) => {
-  const { id, representative_id, customer_group } = req.body;
+  const { id, customer_name, representative_id, customer_group } = req.body;
 
-  if (!id || !representative_id || !customer_group) {
+ if (!id || !customer_name || !customer_name.trim() || !representative_id || !customer_group) {
     return res.status(400).json({
-      error: "Müşteri, temsilci ve grup bilgisi gerekli."
+      error: "Müşteri adı, temsilci ve grup bilgisi gerekli."
     });
   }
 
@@ -349,14 +349,16 @@ app.post("/api/approve-customer", async (req, res) => {
 
     await client.query(
       `INSERT INTO customers
-       (phone, representative_id, customer_group, status)
-       VALUES ($1, $2, $3, 'active')
-       ON CONFLICT (phone)
-       DO UPDATE SET
-         representative_id = EXCLUDED.representative_id,
-         customer_group = EXCLUDED.customer_group,
-         updated_at = CURRENT_TIMESTAMP`,
-      [phone, representative_id, customer_group]
+(phone, customer_name, representative_id, customer_group, status)
+VALUES ($1, $2, $3, $4, 'active')
+ON CONFLICT (phone)
+DO UPDATE SET
+  customer_name = EXCLUDED.customer_name,
+  representative_id = EXCLUDED.representative_id,
+  customer_group = EXCLUDED.customer_group,
+  status = 'active',
+  updated_at = CURRENT_TIMESTAMP`,
+[phone, customer_name.trim(), representative_id, customer_group]
     );
 
     await client.query(
