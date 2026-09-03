@@ -305,6 +305,7 @@ async function rejectCustomer(id) {
   try {
     var response = await fetch("/api/customers");
     var customers = await response.json();
+    window.customerPortfolioData = customers;
 
     if (!response.ok) {
       container.innerHTML = "Müşteri portföyü yüklenemedi.";
@@ -323,38 +324,167 @@ async function rejectCustomer(id) {
       T4: "İshak Merter"
     };
 
-    var html = "";
+    var html = `
+  <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+    <input
+      id="portfolioSearch"
+      type="text"
+      placeholder="İsim veya telefon ara..."
+      oninput="renderCustomerPortfolio()"
+      style="flex:2; min-width:220px; padding:8px;"
+    >
 
-    customers.forEach(function (customer) {
-      var representativeName =
-        representativeNames[customer.representative_id] || customer.representative_id;
+    <select
+      id="portfolioRepFilter"
+      onchange="renderCustomerPortfolio()"
+      style="flex:1; min-width:150px; padding:8px;"
+    >
+      <option value="">Tüm Temsilciler</option>
+      <option value="T1">Ali Merter</option>
+      <option value="T2">Harun Merter</option>
+      <option value="T3">Muhammed Merter</option>
+      <option value="T4">İshak Merter</option>
+    </select>
 
-      var statusText =
-        customer.status === "active" ? "🟢 Aktif" : "🔴 Pasif";
-      var newStatus =
-  customer.status === "active" ? "passive" : "active";
+    <select
+      id="portfolioGroupFilter"
+      onchange="renderCustomerPortfolio()"
+      style="flex:1; min-width:120px; padding:8px;"
+    >
+      <option value="">Tüm Gruplar</option>
+      <option value="Yerli">Yerli</option>
+      <option value="Yabancı">Yabancı</option>
+    </select>
 
-var buttonText =
-  customer.status === "active" ? "PASİFE AL" : "YENİDEN AKTİFLEŞTİR";
-        
-      html +=
-       "<div style='padding:15px; margin-bottom:12px; border:1px solid #ddd; border-radius:10px;'>" +
-"<strong>" + (customer.customer_name || "İsimsiz Müşteri") + "</strong><br>" +
-"Telefon: " + customer.phone + "<br>" +
-"Temsilci: " + representativeName + "<br>" +
-"Grup: " + customer.customer_group + "<br>" +
-"Durum: " + statusText + "<br><br>" +
-"<button type='button' onclick=\"changeCustomerStatus(" +
-customer.id + ", '" + newStatus + "')\">" +
-buttonText +
-"</button>" +
-"</div>";
-    });
+    <select
+      id="portfolioStatusFilter"
+      onchange="renderCustomerPortfolio()"
+      style="flex:1; min-width:120px; padding:8px;"
+    >
+      <option value="">Tüm Durumlar</option>
+      <option value="active">Aktif</option>
+      <option value="passive">Pasif</option>
+    </select>
+  </div>
 
-    container.innerHTML = html;
+  <div id="portfolioRows"></div>
+`;
+
+container.innerHTML = html;
+renderCustomerPortfolio();
+
   } catch (error) {
     container.innerHTML = "Müşteri portföyü yüklenirken bağlantı hatası oluştu.";
   }
+}
+    function renderCustomerPortfolio() {
+    var customers = window.customerPortfolioData || [];
+    var rowsContainer = document.getElementById("portfolioRows");
+
+    if (!rowsContainer) return;
+
+    var search =
+        (document.getElementById("portfolioSearch")?.value || "")
+        .toLocaleLowerCase("tr-TR")
+        .trim();
+
+    var repFilter =
+        document.getElementById("portfolioRepFilter")?.value || "";
+
+    var groupFilter =
+        document.getElementById("portfolioGroupFilter")?.value || "";
+
+    var statusFilter =
+        document.getElementById("portfolioStatusFilter")?.value || "";
+
+    var representativeNames = {
+        T1: "Ali Merter",
+        T2: "Harun Merter",
+        T3: "Muhammed Merter",
+        T4: "İshak Merter"
+    };
+
+    var filteredCustomers = customers.filter(function(customer) {
+        var name = (customer.customer_name || "İsimsiz Müşteri")
+            .toLocaleLowerCase("tr-TR");
+
+        var phone = String(customer.phone || "");
+
+        var matchesSearch =
+            !search ||
+            name.includes(search) ||
+            phone.includes(search);
+
+        var matchesRep =
+            !repFilter ||
+            customer.representative_id === repFilter;
+
+        var matchesGroup =
+            !groupFilter ||
+            customer.customer_group === groupFilter;
+
+        var matchesStatus =
+            !statusFilter ||
+            customer.status === statusFilter;
+
+        return matchesSearch &&
+               matchesRep &&
+               matchesGroup &&
+               matchesStatus;
+    });
+
+    if (filteredCustomers.length === 0) {
+        rowsContainer.innerHTML =
+            '<div style="padding:12px;">Filtreye uygun müşteri bulunamadı.</div>';
+        return;
+    }
+
+    var rowsHtml = "";
+
+    filteredCustomers.forEach(function(customer) {
+        var representativeName =
+            representativeNames[customer.representative_id] ||
+            customer.representative_id;
+
+        var statusText =
+            customer.status === "active"
+                ? "🟢 Aktif"
+                : "🔴 Pasif";
+
+        var newStatus =
+            customer.status === "active"
+                ? "passive"
+                : "active";
+
+        var buttonText =
+            customer.status === "active"
+                ? "PASİFE AL"
+                : "AKTİFLEŞTİR";
+
+        rowsHtml +=
+            '<div style="display:grid; grid-template-columns:2fr 1.4fr 1.3fr 1fr 1fr 1fr; gap:8px; align-items:center; padding:8px 10px; border-bottom:1px solid #ddd;">' +
+
+            '<strong>' +
+            (customer.customer_name || "İsimsiz Müşteri") +
+            '</strong>' +
+
+            '<span>' + customer.phone + '</span>' +
+
+            '<span>' + representativeName + '</span>' +
+
+            '<span>' + customer.customer_group + '</span>' +
+
+            '<span>' + statusText + '</span>' +
+
+            '<button type="button" onclick="changeCustomerStatus(' +
+            customer.id + ', \'' + newStatus + '\')">' +
+            buttonText +
+            '</button>' +
+
+            '</div>';
+    });
+
+    rowsContainer.innerHTML = rowsHtml;
 }
 async function changeCustomerStatus(id, newStatus) {
   try {
