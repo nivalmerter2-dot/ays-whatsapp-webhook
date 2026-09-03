@@ -161,6 +161,46 @@ await pool.query(
     stoppedCustomer.representative_id
   ]
 );
+   const isForeignStop =
+  buttonText !== "MESAJ ALMAK İSTEMİYORUM";
+
+const stopReplyText = isForeignStop
+  ? "Your request has been received. You will no longer receive product and marketing images from AYS GROUP." +
+    "\n\nتم استلام طلبك. لن تتلقى بعد الآن صور المنتجات والرسائل التسويقية من AYS GROUP."
+  : "Talebiniz alınmıştır. Bundan sonra AYS GROUP tarafından ürün ve pazarlama görselleri gönderilmeyecektir.";
+
+const stopReplyResponse = await fetch(
+  https://graph.facebook.com/v26.0/${PHONE_NUMBER_ID}/messages,
+  {
+    method: "POST",
+    headers: {
+      Authorization: Bearer ${META_TOKEN},
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "text",
+      text: {
+        body: stopReplyText
+      }
+    })
+  }
+);
+
+const stopReplyData = await stopReplyResponse.json();
+
+if (!stopReplyResponse.ok) {
+  console.error(
+    "STOP onay mesajı gönderilemedi:",
+    stopReplyData
+  );
+} else {
+  console.log(
+    "STOP onay mesajı müşteriye gönderildi:",
+    phone
+  );
+}
     console.log("Müşteri STOP butonuyla pasife alındı:", phone);
   } else {
     console.log("STOP butonuna basan numara portföyde bulunamadı:", phone);
