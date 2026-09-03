@@ -641,6 +641,99 @@ app.post("/api/customer-delete", async (req, res) => {
     });
   }
 });
+app.get("/api/rejected-customers", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, phone, profile_name, first_message, rejected_at
+       FROM rejected_customers
+       ORDER BY rejected_at DESC`
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Spam listesi alınamadı:", error);
+
+    res.status(500).json({
+      error: "Spam listesi alınamadı."
+    });
+  }
+});
+app.post("/api/rejected-customer-restore", async (req, res) => {
+  const { id } = req.body;
+
+  if (!id) {
+    return res.status(400).json({
+      error: "Geçersiz spam kaydı."
+    });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const rejectedResult = await client.query(
+      `SELECT id, phone, profile_name, first_message
+       FROM rejected_customers
+       WHERE id = $1
+       LIMIT 1`,
+      [id]
+    );
+
+    if (rejectedResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+
+      return res.status(404).json({
+        error: "Spam kaydı bulunamadı."
+      });
+    }
+
+    const customer = rejectedResult.rows[0];
+
+    await client.query(
+      `INSERT INTO pending_customers
+       (phone, first_message, profile_name)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (phone)
+       DO UPDATE SET
+         first_message = EXCLUDED.first_message,
+         profile_name = EXCLUDED.profile_name`,
+      [
+        customer.phone,
+        customer.first_message,
+        customer.profile_name
+      ]
+    );
+
+    await client.query(
+      `DELETE FROM rejected_customers
+       WHERE id = $1`,
+      [id]
+    );
+
+    await client.query("COMMIT");
+
+    console.log(
+      "Müşteri spamdan çıkarıldı ve bekleyenlere alındı:",
+      customer.phone
+    );
+
+    res.json({
+      success: true,
+      customer: customer
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+
+    console.error("Spamdan çıkarma hatası:", error);
+
+    res.status(500).json({
+      error: "Müşteri spam listesinden çıkarılamadı."
+    });
+  } finally {
+    client.release();
+  }
+});
 app.post("/api/approve-customer", async (req, res) => {
   const { id, customer_name, representative_id, customer_group } = req.body;
 
