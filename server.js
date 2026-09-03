@@ -191,7 +191,71 @@ await pool.query(
         contactCustomer.representative_id
       ]
     );
+  const representatives = {
+  T1: {
+    name: "Ali Merter",
+    phone: "905388933267"
+  },
+  T2: {
+    name: "Harun Merter",
+    phone: "905327294696"
+  },
+  T3: {
+    name: "Muhammed Merter",
+    phone: "905323574696"
+  },
+  T4: {
+    name: "İshak Merter",
+    phone: "905466673431"
+  }
+};
 
+const representative =
+  representatives[contactCustomer.representative_id];
+
+if (representative) {
+  const whatsappLink =
+    "https://wa.me/" + representative.phone;
+
+  const replyText =
+    "Müşteri temsilciniz: " +
+    representative.name +
+    "\n\nGörüşmek için aşağıdaki WhatsApp bağlantısını kullanabilirsiniz:\n" +
+    whatsappLink;
+
+  const replyResponse = await fetch(
+    https://graph.facebook.com/v26.0/${PHONE_NUMBER_ID}/messages,
+    {
+      method: "POST",
+      headers: {
+        Authorization: Bearer ${META_TOKEN},
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: phone,
+        type: "text",
+        text: {
+          body: replyText
+        }
+      })
+    }
+  );
+
+  const replyData = await replyResponse.json();
+
+  if (!replyResponse.ok) {
+    console.error(
+      "Temsilci WhatsApp bağlantısı gönderilemedi:",
+      replyData
+    );
+  } else {
+    console.log(
+      "Temsilci WhatsApp bağlantısı müşteriye gönderildi:",
+      phone
+    );
+  }
+}
     console.log(
       "Müşteri temsilci iletişim talebi kaydedildi:",
       phone
