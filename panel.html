@@ -135,6 +135,7 @@
       formData.append("numbers", numbers);
 
       try {
+        isSending = true;
 
         var response = await fetch("/send-campaign", {
           method: "POST",
@@ -156,9 +157,11 @@
           (result.failed || 0);
 
       } catch (error) {
-        durum.innerText =
-          "Bağlantı hatası: " + error.message;
-      }
+    durum.innerText =
+        "Bağlantı hatası: " + error.message;
+} finally {
+    isSending = false;
+}
     };
     async function loadPendingCustomers() {
   var container = document.getElementById("pendingCustomers");
@@ -381,8 +384,12 @@ async function changeCustomerStatus(id, newStatus) {
     loadPendingCustomers();
     loadCustomerPortfolio();
     
-    setInterval(function () {
-  loadPendingCustomers();
+    var isSending = false;
+
+setInterval(function () {
+    if (!isSending) {
+        loadPendingCustomers();
+    }
 }, 300000);
   </script>
 
