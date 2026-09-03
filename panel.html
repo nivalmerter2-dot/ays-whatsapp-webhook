@@ -104,6 +104,21 @@
     Müşteri portföyü yükleniyor...
   </div>
 </div>
+  <div class="panel" style="margin-top:25px;">
+  <h1>Spam / Reddedilenler</h1>
+
+  <input
+    id="rejectedSearch"
+    type="text"
+    placeholder="İsim veya telefon ara..."
+    oninput="renderRejectedCustomers()"
+    style="width:100%; box-sizing:border-box; padding:8px; margin-bottom:10px;"
+  >
+
+  <div id="rejectedCustomers">
+    Spam listesi yükleniyor...
+  </div>
+</div>
   <script>
 
     var sendButton = document.getElementById("sendButton");
@@ -555,8 +570,106 @@ async function changeCustomerStatus(id, newStatus) {
     alert("Bağlantı hatası: " + error.message);
   }
 }
+    async function loadRejectedCustomers() {
+  var container = document.getElementById("rejectedCustomers");
+
+  try {
+    var response = await fetch("/api/rejected-customers");
+    var customers = await response.json();
+
+    if (!response.ok) {
+      container.innerHTML = "Spam listesi yüklenemedi.";
+      return;
+    }
+
+    window.rejectedCustomerData = customers;
+    renderRejectedCustomers();
+  } catch (error) {
+    container.innerHTML = "Spam listesi yüklenirken bağlantı hatası oluştu.";
+  }
+}
+
+function renderRejectedCustomers() {
+  var container = document.getElementById("rejectedCustomers");
+  var customers = window.rejectedCustomerData || [];
+
+  if (!container) return;
+
+  var search =
+    (document.getElementById("rejectedSearch")?.value || "")
+      .toLocaleLowerCase("tr-TR")
+      .trim();
+
+  var filteredCustomers = customers.filter(function(customer) {
+    var name = (customer.profile_name || "İsimsiz")
+      .toLocaleLowerCase("tr-TR");
+
+    var phone = String(customer.phone || "");
+
+    return !search ||
+      name.includes(search) ||
+      phone.includes(search);
+  });
+
+  if (filteredCustomers.length === 0) {
+    container.innerHTML =
+      '<div style="padding:8px;">Spam listesinde müşteri yok.</div>';
+    return;
+  }
+
+  var html = "";
+
+  filteredCustomers.forEach(function(customer) {
+    html +=
+      '<div style="display:grid; grid-template-columns:2fr 1.5fr 1fr; gap:8px; align-items:center; padding:5px 8px; border-bottom:1px solid #ddd;">' +
+      '<strong>' + (customer.profile_name || "İsimsiz") + '</strong>' +
+      '<span>' + customer.phone + '</span>' +
+      '<button type="button" ' +
+      'style="padding:4px 6px; font-size:10px; white-space:nowrap;" ' +
+      'onclick="restoreRejectedCustomer(' + customer.id + ')">' +
+      'SPAMDAN ÇIKAR' +
+      '</button>' +
+      '</div>';
+  });
+
+  container.innerHTML = html;
+}
+
+async function restoreRejectedCustomer(id) {
+  var confirmed = confirm(
+    "Bu müşteriyi spam listesinden çıkarıp Bekleyen Yeni Müşteriler bölümüne almak istediğinize emin misiniz?"
+  );
+
+  if (!confirmed) return;
+
+  try {
+    var response = await fetch("/api/rejected-customer-restore", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        id: id
+      })
+    });
+
+    var result = await response.json();
+
+    if (!response.ok) {
+      alert(result.error || "Müşteri spam listesinden çıkarılamadı.");
+      return;
+    }
+
+    await loadRejectedCustomers();
+    await loadPendingCustomers();
+
+  } catch (error) {
+    alert("Bağlantı hatası: " + error.message);
+  }
+}
     loadPendingCustomers();
     loadCustomerPortfolio();
+    loadRejectedCustomers();
     
     var isSending = false;
 
