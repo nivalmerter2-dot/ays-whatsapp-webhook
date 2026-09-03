@@ -22,13 +22,17 @@ async function initDatabase() {
     CREATE TABLE IF NOT EXISTS customers (
       id SERIAL PRIMARY KEY,
       phone VARCHAR(30) UNIQUE NOT NULL,
+      customer_name VARCHAR(255),
       representative_id VARCHAR(10),
       customer_group VARCHAR(20),
       status VARCHAR(20) NOT NULL DEFAULT 'active',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
-
+await pool.query(`
+  ALTER TABLE customers
+  ADD COLUMN IF NOT EXISTS customer_name VARCHAR(255)
+`);
     CREATE TABLE IF NOT EXISTS pending_customers (
       id SERIAL PRIMARY KEY,
       phone VARCHAR(30) UNIQUE NOT NULL,
@@ -113,7 +117,7 @@ if (
      SET status = 'passive',
          updated_at = CURRENT_TIMESTAMP
      WHERE phone = $1
-     RETURNING id, phone`,
+     RETURNING id, phone, representative_id, customer_group
     [phone]
   );
 
