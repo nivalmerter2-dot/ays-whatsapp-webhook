@@ -94,6 +94,29 @@ async function sendNtfyForRepresentative(topic, representativeId, message) {
     return false;
   }
 }
+app.get("/test-ntfy-reps", async (req, res) => {
+  const results = {};
+
+  results.T2 = await sendNtfyForRepresentative(
+    NTFY_T2_TOPIC,
+    "T2",
+    "AYS TEST - Harun Merter"
+  );
+
+  results.T3 = await sendNtfyForRepresentative(
+    NTFY_T3_TOPIC,
+    "T3",
+    "AYS TEST - Muhammed Merter"
+  );
+
+  results.T4 = await sendNtfyForRepresentative(
+    NTFY_T4_TOPIC,
+    "T4",
+    "AYS TEST - Ishak Merter"
+  );
+
+  res.json(results);
+});
 async function sendPendingT1Notifications() {
   try {
     const result = await pool.query(
