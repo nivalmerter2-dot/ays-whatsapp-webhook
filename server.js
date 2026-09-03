@@ -28,12 +28,14 @@ async function initDatabase() {
       status VARCHAR(20) NOT NULL DEFAULT 'active',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
+);
+`);
 await pool.query(`
   ALTER TABLE customers
   ADD COLUMN IF NOT EXISTS customer_name VARCHAR(255)
 `);
-    CREATE TABLE IF NOT EXISTS pending_customers (
+   await pool.query(` 
+  CREATE TABLE IF NOT EXISTS pending_customers (
       id SERIAL PRIMARY KEY,
       phone VARCHAR(30) UNIQUE NOT NULL,
       first_message TEXT,
