@@ -16,6 +16,42 @@ const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 
 const META_TOKEN = process.env.META_TOKEN;
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
+const NTFY_T1_TOPIC = process.env.NTFY_T1_TOPIC;
+async function sendNtfyT1(message, title = "AYS Müşteri Bildirimi") {
+  if (!NTFY_T1_TOPIC) {
+    console.error("NTFY_T1_TOPIC tanımlı değil.");
+    return false;
+  }
+
+  try {
+    const response = await fetch(
+      `https://ntfy.sh/${NTFY_T1_TOPIC}`,
+      {
+        method: "POST",
+        headers: {
+          "Title": title,
+          "Priority": "high",
+          "Tags": "telephone_receiver"
+        },
+        body: message
+      }
+    );
+
+    if (!response.ok) {
+      console.error(
+        "T1 ntfy bildirimi gönderilemedi:",
+        response.status
+      );
+      return false;
+    }
+
+    console.log("T1 ntfy bildirimi gönderildi.");
+    return true;
+  } catch (error) {
+    console.error("T1 ntfy bağlantı hatası:", error);
+    return false;
+  }
+}
 
 async function initDatabase() {
   await pool.query(`
@@ -82,7 +118,18 @@ await pool.query(`
 initDatabase().catch((error) => {
   console.error("Veritabanı başlatma hatası:", error);
 });
+app.get("/test-ntfy-t1", async (req, res) => {
+  const sent = await sendNtfyT1(
+    "Render üzerinden test bildirimi başarıyla gönderildi.",
+    "AYS TEST - Ali Merter"
+  );
 
+  if (sent) {
+    return res.status(200).send("T1 ntfy test bildirimi gönderildi.");
+  }
+
+  return res.status(500).send("T1 ntfy test bildirimi gönderilemedi.");
+});
 // Meta webhook doğrulaması
 app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
