@@ -1063,10 +1063,10 @@ async function runT1NotificationScheduler() {
     return;
   }
 
-  // Sonraki bildirimler her 5 dakikada bir.
-  if (minute %5 === 0) {
-    await sendPendingT1Notifications();
-  }
+  // Sonraki bildirimler her 30 dakikada bir.
+  if (minute === 0 || minute === 30) {
+  await sendPendingT1Notifications();
+}
 }
 
 setInterval(runT1NotificationScheduler, 60 * 1000);
