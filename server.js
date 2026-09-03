@@ -168,7 +168,10 @@ await pool.query(
 
   return;
 }
-    if (buttonText === "MÜŞTERİ TEMSİLCİSİNE ULAŞ") {
+    if (
+  buttonText === "MÜŞTERİ TEMSİLCİSİNE ULAŞ" ||
+  buttonText === "Contact Agent / تواصل مع المندوب"
+) {
   const contactCustomerResult = await pool.query(
     `SELECT id, phone, customer_name, representative_id
      FROM customers
@@ -217,8 +220,19 @@ if (representative) {
   const whatsappLink =
     "https://wa.me/" + representative.phone;
 
-  const replyText =
-    "Müşteri temsilciniz: " +
+  const isForeign =
+  buttonText === "Contact Agent / تواصل مع المندوب";
+
+const replyText = isForeign
+  ? "Your customer representative: " +
+    representative.name +
+    "\n\nYou can contact your representative using the WhatsApp link below:\n" +
+    whatsappLink +
+    "\n\nمندوب خدمة العملاء الخاص بك: " +
+    representative.name +
+    "\n\nيمكنك التواصل مع مندوبك عبر رابط واتساب أدناه:\n" +
+    whatsappLink
+  : "Müşteri temsilciniz: " +
     representative.name +
     "\n\nGörüşmek için aşağıdaki WhatsApp bağlantısını kullanabilirsiniz:\n" +
     whatsappLink;
