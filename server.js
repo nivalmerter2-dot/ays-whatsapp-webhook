@@ -224,11 +224,11 @@ if (representative) {
     whatsappLink;
 
   const replyResponse = await fetch(
-    https://graph.facebook.com/v26.0/${PHONE_NUMBER_ID}/messages,
+    `https://graph.facebook.com/v26.0/${PHONE_NUMBER_ID}/messages`,
     {
       method: "POST",
       headers: {
-        Authorization: Bearer ${META_TOKEN},
+        Authorization: `Bearer ${META_TOKEN}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
