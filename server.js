@@ -69,7 +69,7 @@ async function sendPendingT1Notifications() {
 
     const messageLines = result.rows.map((customer, index) => {
       const name = customer.customer_name || "İsimsiz Müşteri";
-      return `${index + 1}. ${name} - ${customer.phone}`;
+      return `${index + 1}. ${name}\nWhatsApp: https://wa.me/${customer.phone}`;
     });
 
     const message =
