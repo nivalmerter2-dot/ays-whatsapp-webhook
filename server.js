@@ -286,13 +286,32 @@ const replyText = isForeign
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to: phone,
-        type: "text",
-        text: {
-          body: replyText
-        }
-      })
+  messaging_product: "whatsapp",
+  to: phone,
+  type: "interactive",
+  interactive: {
+    type: "cta_url",
+    body: {
+      text: isForeign
+        ? "Your customer representative: " +
+          representative.name +
+          "\n\nمندوب خدمة العملاء الخاص بك: " +
+          representative.name
+        : "Müşteri temsilciniz: " +
+          representative.name +
+          "\n\nTemsilcinizle görüşmek için aşağıdaki butona dokunun."
+    },
+    action: {
+      name: "cta_url",
+      parameters: {
+        display_text: isForeign
+          ? "CONTACT AGENT"
+          : "TEMSİLCİYE ULAŞ",
+        url: whatsappLink
+      }
+    }
+  }
+})
     }
   );
 
