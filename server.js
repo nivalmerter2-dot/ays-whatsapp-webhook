@@ -143,7 +143,7 @@ if (
      SET status = 'passive',
          updated_at = CURRENT_TIMESTAMP
      WHERE phone = $1
-     RETURNING id, phone, customer_name, representative_id, customer_group
+     RETURNING id, phone, customer_name, representative_id, customer_group`,
     [phone]
   );
 
