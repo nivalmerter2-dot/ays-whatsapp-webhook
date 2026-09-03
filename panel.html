@@ -185,7 +185,8 @@
     "<strong>" + (customer.profile_name || "İsimsiz Müşteri") + "</strong><br>" +
     "Telefon: " + customer.phone + "<br>" +
     "İlk mesaj: " + (customer.first_message || "-") + "<br><br>" +
-
+    "<label>Ad Soyad / Firma Adı</label>" +
+"<input type='text' id='name-" + customer.id + "' placeholder='Ad Soyad veya Firma Adı' style='width:100%; padding:10px; margin-bottom:10px; box-sizing:border-box;' />" +
     "<label>Temsilci</label>" +
     "<select id='rep-" + customer.id + "' style='width:100%; padding:10px; margin-bottom:10px;'>" +
       "<option value=''>Temsilci seçin</option>" +
@@ -217,9 +218,14 @@
   }
 }
 async function approveCustomer(id) {
+  var customerName = document.getElementById("name-" + id).value.trim();
   var representative = document.getElementById("rep-" + id).value;
   var group = document.getElementById("group-" + id).value;
 
+  if (!customerName) {
+    alert("Lütfen Ad Soyad / Firma Adı girin.");
+    return;
+}
   if (!representative) {
     alert("Lütfen müşteri temsilcisini seçin.");
     return;
@@ -236,11 +242,12 @@ async function approveCustomer(id) {
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        id: id,
-        representative_id: representative,
-        customer_group: group
-      })
+     body: JSON.stringify({
+    id: id,
+    customer_name: customerName,
+    representative_id: representative,
+    customer_group: group
+})
     });
 
     var result = await response.json();
@@ -328,11 +335,12 @@ var buttonText =
   customer.status === "active" ? "PASİFE AL" : "YENİDEN AKTİFLEŞTİR";
         
       html +=
-        "<div style='padding:15px; margin-bottom:12px; border:1px solid #ddd; border-radius:10px;'>" +
-        "<strong>" + customer.phone + "</strong><br>" +
-        "Temsilci: " + representativeName + "<br>" +
-        "Grup: " + customer.customer_group + "<br>" +
-        "Durum: " + statusText + "<br><br>" +
+       "<div style='padding:15px; margin-bottom:12px; border:1px solid #ddd; border-radius:10px;'>" +
+"<strong>" + (customer.customer_name || "İsimsiz Müşteri") + "</strong><br>" +
+"Telefon: " + customer.phone + "<br>" +
+"Temsilci: " + representativeName + "<br>" +
+"Grup: " + customer.customer_group + "<br>" +
+"Durum: " + statusText + "<br><br>" +
 "<button type='button' onclick=\"changeCustomerStatus(" +
 customer.id + ", '" + newStatus + "')\">" +
 buttonText +
