@@ -52,7 +52,57 @@ async function sendNtfyT1(message, title = "AYS Müşteri Bildirimi") {
     return false;
   }
 }
+async function sendPendingT1Notifications() {
+  try {
+    const result = await pool.query(
+      `SELECT id, customer_name, phone
+       FROM contact_requests
+       WHERE representative_id = 'T1'
+         AND notified = false
+       ORDER BY requested_at ASC`
+    );
 
+    if (result.rows.length === 0) {
+      console.log("T1 için yeni müşteri talebi yok.");
+      return;
+    }
+
+    const messageLines = result.rows.map((customer, index) => {
+      const name = customer.customer_name || "İsimsiz Müşteri";
+      return `${index + 1}. ${name} - ${customer.phone}`;
+    });
+
+    const message =
+      "Müşteri temsilcisine ulaşmak isteyen müşteriler:\n\n" +
+      messageLines.join("\n");
+
+    const sent = await sendNtfyT1(
+      message,
+      `AYS - Yeni Müşteri Talepleri (${result.rows.length})`
+    );
+
+    if (!sent) {
+      console.error("T1 talepleri bildirilmedi; kayıtlar beklemede bırakıldı.");
+      return;
+    }
+
+    const ids = result.rows.map((customer) => customer.id);
+
+    await pool.query(
+      `UPDATE contact_requests
+       SET notified = true,
+           notified_at = CURRENT_TIMESTAMP
+       WHERE id = ANY($1::int[])`,
+      [ids]
+    );
+
+    console.log(
+      `T1 için ${result.rows.length} müşteri talebi bildirildi.`
+    );
+  } catch (error) {
+    console.error("T1 toplu bildirim hatası:", error);
+  }
+}
 async function initDatabase() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS customers (
@@ -118,18 +168,7 @@ await pool.query(`
 initDatabase().catch((error) => {
   console.error("Veritabanı başlatma hatası:", error);
 });
-app.get("/test-ntfy-t1", async (req, res) => {
-  const sent = await sendNtfyT1(
-    "Render üzerinden test bildirimi başarıyla gönderildi.",
-    "AYS TEST - Ali Merter"
-  );
 
-  if (sent) {
-    return res.status(200).send("T1 ntfy test bildirimi gönderildi.");
-  }
-
-  return res.status(500).send("T1 ntfy test bildirimi gönderilemedi.");
-});
 // Meta webhook doğrulaması
 app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
