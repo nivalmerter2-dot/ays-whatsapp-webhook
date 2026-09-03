@@ -62,6 +62,18 @@ await pool.query(`
     notified_at TIMESTAMP
   );
 `);
+  await pool.query(`
+  CREATE TABLE IF NOT EXISTS stop_requests (
+    id SERIAL PRIMARY KEY,
+    customer_id INTEGER,
+    phone VARCHAR(30) NOT NULL,
+    customer_name VARCHAR(255),
+    representative_id VARCHAR(10) NOT NULL,
+    stopped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    notified BOOLEAN NOT NULL DEFAULT false,
+    notified_at TIMESTAMP
+  );
+`);
   console.log("Veritabanı tabloları hazır.");
 }
 
@@ -129,11 +141,24 @@ if (
      SET status = 'passive',
          updated_at = CURRENT_TIMESTAMP
      WHERE phone = $1
-     RETURNING id, phone, representative_id, customer_group
+     RETURNING id, phone, customer_name, representative_id, customer_group
     [phone]
   );
 
   if (passiveResult.rows.length > 0) {
+  const stoppedCustomer = passiveResult.rows[0];
+
+await pool.query(
+  `INSERT INTO stop_requests
+   (customer_id, phone, customer_name, representative_id)
+   VALUES ($1, $2, $3, $4)`,
+  [
+    stoppedCustomer.id,
+    stoppedCustomer.phone,
+    stoppedCustomer.customer_name,
+    stoppedCustomer.representative_id
+  ]
+);
     console.log("Müşteri STOP butonuyla pasife alındı:", phone);
   } else {
     console.log("STOP butonuna basan numara portföyde bulunamadı:", phone);
