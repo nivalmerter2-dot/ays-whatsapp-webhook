@@ -17,6 +17,9 @@ const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 const META_TOKEN = process.env.META_TOKEN;
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 const NTFY_T1_TOPIC = process.env.NTFY_T1_TOPIC;
+const NTFY_T2_TOPIC = process.env.NTFY_T2_TOPIC;
+const NTFY_T3_TOPIC = process.env.NTFY_T3_TOPIC;
+const NTFY_T4_TOPIC = process.env.NTFY_T4_TOPIC;
 async function sendNtfyT1(message, title = "AYS Müşteri Bildirimi") {
   if (!NTFY_T1_TOPIC) {
     console.error("NTFY_T1_TOPIC tanımlı değil.");
@@ -49,6 +52,45 @@ async function sendNtfyT1(message, title = "AYS Müşteri Bildirimi") {
     return true;
   } catch (error) {
     console.error("T1 ntfy bağlantı hatası:", error);
+    return false;
+  }
+}
+async function sendNtfyForRepresentative(topic, representativeId, message) {
+  if (!topic) {
+    console.error("NTFY topic tanımlı değil: " + representativeId);
+    return false;
+  }
+
+  try {
+    const response = await fetch(
+      https://ntfy.sh/${topic},
+      {
+        method: "POST",
+        headers: {
+          "Title": "AYS - Yeni Musteri Talepleri",
+          "Priority": "high",
+          "Tags": "telephone_receiver"
+        },
+        body: message
+      }
+    );
+
+    if (!response.ok) {
+      console.error(
+        representativeId + " ntfy bildirimi gönderilemedi:",
+        response.status
+      );
+      return false;
+    }
+
+    console.log(representativeId + " ntfy bildirimi gönderildi.");
+    return true;
+
+  } catch (error) {
+    console.error(
+      representativeId + " ntfy bağlantı hatası:",
+      error
+    );
     return false;
   }
 }
@@ -101,6 +143,70 @@ async function sendPendingT1Notifications() {
     );
   } catch (error) {
     console.error("T1 toplu bildirim hatası:", error);
+  }
+}
+async function sendPendingRepresentativeNotifications(representativeId, topic) {
+  try {
+    const result = await pool.query(
+      `SELECT id, customer_name, phone
+       FROM contact_requests
+       WHERE representative_id = $1
+         AND notified = false
+       ORDER BY requested_at ASC`,
+      [representativeId]
+    );
+
+    if (result.rows.length === 0) {
+      console.log(representativeId + " için yeni müşteri talebi yok.");
+      return;
+    }
+
+    const messageLines = result.rows.map((customer, index) => {
+      const name = customer.customer_name || "İsimsiz Müşteri";
+
+      return ${index + 1}. ${name}\nWhatsApp: https://wa.me/${customer.phone};
+    });
+
+    const message =
+      "Müşteri temsilcisine ulaşmak isteyen müşteriler:\n\n" +
+      messageLines.join("\n\n");
+
+    const sent = await sendNtfyForRepresentative(
+      topic,
+      representativeId,
+      message
+    );
+
+    if (!sent) {
+      console.error(
+        representativeId +
+        " talepleri bildirilmedi; kayıtlar beklemede bırakıldı."
+      );
+      return;
+    }
+
+    const ids = result.rows.map((customer) => customer.id);
+
+    await pool.query(
+      `UPDATE contact_requests
+       SET notified = true,
+           notified_at = CURRENT_TIMESTAMP
+       WHERE id = ANY($1::int[])`,
+      [ids]
+    );
+
+    console.log(
+      representativeId +
+      " için " +
+      result.rows.length +
+      " müşteri talebi bildirildi."
+    );
+
+  } catch (error) {
+    console.error(
+      representativeId + " toplu bildirim hatası:",
+      error
+    );
   }
 }
 async function initDatabase() {
@@ -1060,12 +1166,18 @@ async function runT1NotificationScheduler() {
   if (wasOutsideBusinessHours) {
     wasOutsideBusinessHours = false;
     await sendPendingT1Notifications();
+    await sendPendingRepresentativeNotifications("T2", NTFY_T2_TOPIC);
+await sendPendingRepresentativeNotifications("T3", NTFY_T3_TOPIC);
+await sendPendingRepresentativeNotifications("T4", NTFY_T4_TOPIC);
     return;
   }
 
   // Sonraki bildirimler her 30 dakikada bir.
   if (minute === 0 || minute === 30) {
   await sendPendingT1Notifications();
+  await sendPendingRepresentativeNotifications("T2", NTFY_T2_TOPIC);
+await sendPendingRepresentativeNotifications("T3", NTFY_T3_TOPIC);
+await sendPendingRepresentativeNotifications("T4", NTFY_T4_TOPIC);
 }
 }
 
