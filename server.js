@@ -63,7 +63,7 @@ async function sendNtfyForRepresentative(topic, representativeId, message) {
 
   try {
     const response = await fetch(
-      https://ntfy.sh/${topic},
+      `https://ntfy.sh/${topic}`,
       {
         method: "POST",
         headers: {
