@@ -50,6 +50,18 @@ await pool.query(`
     rejected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
 `);
+  await pool.query(`
+  CREATE TABLE IF NOT EXISTS contact_requests (
+    id SERIAL PRIMARY KEY,
+    customer_id INTEGER,
+    phone VARCHAR(30) NOT NULL,
+    customer_name VARCHAR(255),
+    representative_id VARCHAR(10) NOT NULL,
+    requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    notified BOOLEAN NOT NULL DEFAULT false,
+    notified_at TIMESTAMP
+  );
+`);
   console.log("Veritabanı tabloları hazır.");
 }
 
@@ -249,6 +261,7 @@ app.get("/api/customers", async (req, res) => {
       SELECT
         id,
         phone,
+        customer_name,
         representative_id,
         customer_group,
         status,
