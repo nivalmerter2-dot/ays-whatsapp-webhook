@@ -476,15 +476,59 @@ renderCustomerPortfolio();
 
             '<span>' + statusText + '</span>' +
 
-            '<button type="button" onclick="changeCustomerStatus(' +
-            customer.id + ', \'' + newStatus + '\')">' +
-            buttonText +
-            '</button>' +
+            '<div style="display:flex; gap:4px;">' +
+
+'<button type="button" ' +
+'style="padding:4px 6px; font-size:10px; white-space:nowrap;" ' +
+'onclick="changeCustomerStatus(' +
+customer.id + ', \'' + newStatus + '\')">' +
+buttonText +
+'</button>' +
+
+'<button type="button" ' +
+'style="padding:4px 6px; font-size:10px; white-space:nowrap;" ' +
+'onclick="deleteCustomer(' + customer.id + ')">' +
+'SİL' +
+'</button>' +
+
+'</div>' +
 
             '</div>';
     });
 
     rowsContainer.innerHTML = rowsHtml;
+}
+    async function deleteCustomer(id) {
+  var confirmed = confirm(
+    "Bu müşteriyi portföyden kalıcı olarak silmek istediğinize emin misiniz?"
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    var response = await fetch("/api/customer-delete", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        id: id
+      })
+    });
+
+    var result = await response.json();
+
+    if (!response.ok) {
+      alert(result.error || "Müşteri silinemedi.");
+      return;
+    }
+
+    await loadCustomerPortfolio();
+  } catch (error) {
+    alert("Bağlantı hatası: " + error.message);
+  }
 }
 async function changeCustomerStatus(id, newStatus) {
   try {
