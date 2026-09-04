@@ -968,6 +968,311 @@ app.get("/api/customers", async (req, res) => {
     });
   }
 });
+app.get("/api/customers/excel-template", async (req, res) => {
+  try {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Musteriler");
+
+    worksheet.columns = [
+      { header: "Müşteri Adı", key: "customer_name", width: 28 },
+      { header: "Telefon", key: "phone", width: 20 },
+      { header: "Temsilci", key: "representative_id", width: 18 },
+      { header: "Grup", key: "customer_group", width: 15 },
+      { header: "Durum", key: "status", width: 15 }
+    ];
+
+    worksheet.addRow({
+      customer_name: "Örnek Müşteri",
+      phone: "905321234567",
+      representative_id: "T1",
+      customer_group: "Yerli",
+      status: "active"
+    });
+
+    worksheet.getColumn("phone").numFmt = "@";
+
+    const buffer = await workbook.xlsx.writeBuffer();
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="musteri_sablonu.xlsx"'
+    );
+
+    res.send(Buffer.from(buffer));
+  } catch (error) {
+    console.error("Excel şablonu oluşturulamadı:", error);
+
+    res.status(500).json({
+      error: "Excel şablonu oluşturulamadı."
+    });
+  }
+});
+app.post("/api/customers/export-excel", async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body.ids) ? req.body.ids : [];
+
+    if (ids.length === 0) {
+      return res.status(400).json({
+        error: "Dışa aktarılacak müşteri bulunamadı."
+      });
+    }
+
+    const numericIds = ids
+      .map(function (id) {
+        return Number(id);
+      })
+      .filter(function (id) {
+        return Number.isInteger(id) && id > 0;
+      });
+
+    if (numericIds.length === 0) {
+      return res.status(400).json({
+        error: "Geçerli müşteri bulunamadı."
+      });
+    }
+
+    const result = await pool.query(
+      `SELECT
+        id,
+        customer_name,
+        phone,
+        representative_id,
+        customer_group,
+        status,
+        created_at
+       FROM customers
+       WHERE id = ANY($1::int[])
+       ORDER BY customer_name ASC`,
+      [numericIds]
+    );
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Musteriler");
+
+    worksheet.columns = [
+      { header: "Müşteri Adı", key: "customer_name", width: 28 },
+      { header: "Telefon", key: "phone", width: 20 },
+      { header: "Temsilci", key: "representative_id", width: 18 },
+      { header: "Grup", key: "customer_group", width: 15 },
+      { header: "Durum", key: "status", width: 15 },
+      { header: "Kayıt Tarihi", key: "created_at", width: 22 }
+    ];
+
+    result.rows.forEach(function (customer) {
+      worksheet.addRow({
+        customer_name: customer.customer_name || "",
+        phone: String(customer.phone || ""),
+        representative_id: customer.representative_id || "",
+        customer_group: customer.customer_group || "",
+        status: customer.status || "",
+        created_at: customer.created_at || ""
+      });
+    });
+
+    worksheet.getColumn("phone").numFmt = "@";
+
+    const buffer = await workbook.xlsx.writeBuffer();
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="musteri_portfoyu.xlsx"'
+    );
+
+    res.send(Buffer.from(buffer));
+  } catch (error) {
+    console.error("Excel dışa aktarma hatası:", error);
+
+    res.status(500).json({
+      error: "Müşteri portföyü Excel'e aktarılamadı."
+    });
+  }
+});
+app.post(
+  "/api/customers/import-excel",
+  upload.single("file"),
+  async (req, res) => {
+    const client = await pool.connect();
+
+    try {
+      if (!req.file || !req.file.buffer) {
+        return res.status(400).json({
+          error: "Excel dosyası bulunamadı."
+        });
+      }
+
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(req.file.buffer);
+
+      const worksheet = workbook.worksheets[0];
+
+      if (!worksheet) {
+        return res.status(400).json({
+          error: "Excel dosyasında çalışma sayfası bulunamadı."
+        });
+      }
+
+      let added = 0;
+      let existing = 0;
+      let invalid = 0;
+      let duplicateInFile = 0;
+
+      const seenPhones = new Set();
+      const invalidRows = [];
+
+      await client.query("BEGIN");
+
+      for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
+        const row = worksheet.getRow(rowNumber);
+
+        const customerName = String(row.getCell(1).value || "").trim();
+
+        let phone = String(row.getCell(2).value || "")
+          .replace(/\D/g, "");
+
+        const representativeId = String(
+          row.getCell(3).value || ""
+        ).trim();
+
+        const customerGroup = String(
+          row.getCell(4).value || ""
+        ).trim();
+
+        const status = String(
+          row.getCell(5).value || "active"
+        ).trim().toLowerCase();
+
+        // Tamamen boş satırı yok say.
+        if (
+          !customerName &&
+          !phone &&
+          !representativeId &&
+          !customerGroup
+        ) {
+          continue;
+        }
+
+        // Türkiye'de 05xx... şeklinde yazılmışsa 90'a çevir.
+        if (phone.length === 11 && phone.startsWith("0")) {
+          phone = "90" + phone.substring(1);
+        }
+
+        // 5xx... şeklinde yazılmışsa 90 ekle.
+        if (phone.length === 10 && phone.startsWith("5")) {
+          phone = "90" + phone;
+        }
+
+        const validPhone =
+          phone.length === 12 &&
+          phone.startsWith("90");
+
+        const validRepresentative =
+          ["T1", "T2", "T3", "T4"].includes(representativeId);
+
+        const validGroup =
+          ["Yerli", "Yabancı"].includes(customerGroup);
+
+        const validStatus =
+          ["active", "passive"].includes(status);
+
+        if (
+          !validPhone ||
+          !validRepresentative ||
+          !validGroup ||
+          !validStatus
+        ) {
+          invalid++;
+
+          invalidRows.push({
+            row: rowNumber,
+            phone: phone,
+            reason: "Telefon, temsilci, grup veya durum bilgisi geçersiz."
+          });
+
+          continue;
+        }
+
+        if (seenPhones.has(phone)) {
+          duplicateInFile++;
+          continue;
+        }
+
+        seenPhones.add(phone);
+
+        const existingResult = await client.query(
+          `SELECT id
+           FROM customers
+           WHERE phone = $1
+           LIMIT 1`,
+          [phone]
+        );
+
+        if (existingResult.rows.length > 0) {
+          existing++;
+          continue;
+        }
+
+        await client.query(
+          `INSERT INTO customers
+            (
+              phone,
+              customer_name,
+              representative_id,
+              customer_group,
+              status,
+              created_at,
+              updated_at
+            )
+           VALUES
+            ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          [
+            phone,
+            customerName || null,
+            representativeId,
+            customerGroup,
+            status
+          ]
+        );
+
+        added++;
+      }
+
+      await client.query("COMMIT");
+
+      res.json({
+        success: true,
+        added: added,
+        existing: existing,
+        invalid: invalid,
+        duplicate_in_file: duplicateInFile,
+        invalid_rows: invalidRows
+      });
+    } catch (error) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Excel rollback hatası:", rollbackError);
+      }
+
+      console.error("Excel içe aktarma hatası:", error);
+
+      res.status(500).json({
+        success: false,
+        error: "Excel dosyası içe aktarılamadı."
+      });
+    } finally {
+      client.release();
+    }
+  }
+);
 app.post("/api/customer-status", async (req, res) => {
   const { id, status } = req.body;
 
