@@ -1376,7 +1376,7 @@ const languageCode =
 
 if (wamid) {
   await pool.query(
-   INSERT INTO message_statuses
+   `INSERT INTO message_statuses
   (wamid, phone, campaign_id, status, updated_at)
 VALUES ($1, $2, $3, 'accepted', CURRENT_TIMESTAMP)
      ON CONFLICT (wamid)
