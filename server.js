@@ -318,7 +318,100 @@ app.post("/webhook", async (req, res) => {
   try {
     const value =
       req.body?.entry?.[0]?.changes?.[0]?.value;
+const statusUpdate = value?.statuses?.[0];
 
+if (statusUpdate?.id && statusUpdate?.status) {
+  const wamid = statusUpdate.id;
+  const status = statusUpdate.status;
+  const phone =
+    statusUpdate.recipient_id ||
+    statusUpdate.recipient_user_id ||
+    null;
+
+  const error = statusUpdate.errors?.[0] || null;
+  const errorCode = error?.code ? String(error.code) : null;
+  const errorTitle = error?.title || null;
+  const errorMessage =
+    error?.message ||
+    error?.error_data?.details ||
+    null;
+
+  const metaTimestamp = statusUpdate.timestamp || null;
+
+  await pool.query(
+    `INSERT INTO message_statuses
+      (
+        wamid,
+        phone,
+        status,
+        error_code,
+        error_title,
+        error_message,
+        meta_timestamp,
+        sent_at,
+        delivered_at,
+        read_at,
+        failed_at,
+        updated_at
+      )
+     VALUES (
+       $1, $2, $3, $4, $5, $6, $7,
+       CASE WHEN $3 = 'sent' THEN CURRENT_TIMESTAMP ELSE NULL END,
+       CASE WHEN $3 = 'delivered' THEN CURRENT_TIMESTAMP ELSE NULL END,
+       CASE WHEN $3 = 'read' THEN CURRENT_TIMESTAMP ELSE NULL END,
+       CASE WHEN $3 = 'failed' THEN CURRENT_TIMESTAMP ELSE NULL END,
+       CURRENT_TIMESTAMP
+     )
+     ON CONFLICT (wamid)
+     DO UPDATE SET
+       phone = COALESCE(EXCLUDED.phone, message_statuses.phone),
+       status = EXCLUDED.status,
+       error_code = COALESCE(EXCLUDED.error_code, message_statuses.error_code),
+       error_title = COALESCE(EXCLUDED.error_title, message_statuses.error_title),
+       error_message = COALESCE(EXCLUDED.error_message, message_statuses.error_message),
+       meta_timestamp = COALESCE(EXCLUDED.meta_timestamp, message_statuses.meta_timestamp),
+       sent_at = CASE
+         WHEN EXCLUDED.status = 'sent'
+         THEN COALESCE(message_statuses.sent_at, CURRENT_TIMESTAMP)
+         ELSE message_statuses.sent_at
+       END,
+       delivered_at = CASE
+         WHEN EXCLUDED.status = 'delivered'
+         THEN COALESCE(message_statuses.delivered_at, CURRENT_TIMESTAMP)
+         ELSE message_statuses.delivered_at
+       END,
+       read_at = CASE
+         WHEN EXCLUDED.status = 'read'
+         THEN COALESCE(message_statuses.read_at, CURRENT_TIMESTAMP)
+         ELSE message_statuses.read_at
+       END,
+       failed_at = CASE
+         WHEN EXCLUDED.status = 'failed'
+         THEN COALESCE(message_statuses.failed_at, CURRENT_TIMESTAMP)
+         ELSE message_statuses.failed_at
+       END,
+       updated_at = CURRENT_TIMESTAMP`,
+    [
+      wamid,
+      phone,
+      status,
+      errorCode,
+      errorTitle,
+      errorMessage,
+      metaTimestamp
+    ]
+  );
+
+  console.log(
+    "WhatsApp mesaj durumu kaydedildi:",
+    wamid,
+    status,
+    phone,
+    errorCode || ""
+  );
+
+  return;
+}
     const message = value?.messages?.[0];
 
     // Teslimat bildirimi gibi bir webhook ise müşteri kaydı oluşturma
@@ -601,9 +694,46 @@ app.get("/api/pending-customers", async (req, res) => {
 
     res.json(result.rows);
   } catch (error) {
-    console.error("Bekleyen müşteriler alınamadı:", error);
+      console.error("Bekleyen müşteriler alınamadı:", error);
     res.status(500).json({
       error: "Bekleyen müşteriler alınamadı."
+    });
+  }
+});
+app.get("/api/message-statuses", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        id,
+        wamid,
+        phone,
+        status,
+        error_code,
+        error_title,
+        error_message,
+        meta_timestamp,
+        sent_at,
+        delivered_at,
+        read_at,
+        failed_at,
+        created_at,
+        updated_at
+      FROM message_statuses
+      ORDER BY updated_at DESC
+      LIMIT 500
+    `);
+
+    res.json({
+      success: true,
+      total: result.rows.length,
+      messages: result.rows
+    });
+  } catch (error) {
+    console.error("Mesaj durumları alınamadı:", error);
+
+    res.status(500).json({
+      success: false,
+      error: "Mesaj durumları alınamadı."
     });
   }
 });
@@ -1082,6 +1212,22 @@ const languageCode =
 
       if (messageResponse.ok) {
         sent++;
+        const wamid = messageData?.messages?.[0]?.id;
+
+if (wamid) {
+  await pool.query(
+    `INSERT INTO message_statuses
+      (wamid, phone, status, updated_at)
+     VALUES ($1, $2, 'accepted', CURRENT_TIMESTAMP)
+     ON CONFLICT (wamid)
+     DO UPDATE SET
+       phone = COALESCE(message_statuses.phone, EXCLUDED.phone),
+       updated_at = CURRENT_TIMESTAMP`,
+    [wamid, to]
+  );
+
+  console.log("Meta mesaj kabul kaydı oluşturuldu:", to, wamid);
+}
       } else {
         failed++;
         errors.push({
