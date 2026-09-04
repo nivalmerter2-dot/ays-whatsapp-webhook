@@ -7,62 +7,168 @@
 
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background: #f5f5f5;
-      margin: 0;
-      padding: 40px 20px;
+    font-family: Arial, Helvetica, sans-serif;
+    background: #f4f6f8;
+    color: #1f2937;
+    margin: 0;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+.panel {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    background: #ffffff;
+    padding: 20px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+h1 {
+    margin: 0 0 16px 0;
+    font-size: 24px;
+    line-height: 1.25;
+    color: #111827;
+}
+
+h2 {
+    margin: 0 0 14px 0;
+    font-size: 19px;
+    line-height: 1.3;
+    color: #111827;
+}
+
+label {
+    display: block;
+    font-weight: 600;
+    font-size: 13px;
+    margin-top: 14px;
+    margin-bottom: 6px;
+    color: #374151;
+}
+
+input,
+textarea,
+select {
+    font-family: inherit;
+    font-size: 13px;
+    border: 1px solid #d1d5db;
+    border-radius: 7px;
+    background: #ffffff;
+}
+
+input,
+textarea {
+    width: 100%;
+    padding: 9px 10px;
+}
+
+select {
+    padding: 8px 10px;
+}
+
+textarea {
+    min-height: 115px;
+    resize: vertical;
+}
+
+button {
+    width: auto;
+    padding: 8px 13px;
+    margin-top: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+    border: 1px solid #d1d5db;
+    border-radius: 7px;
+    background: #ffffff;
+    color: #1f2937;
+    cursor: pointer;
+    transition: 0.15s ease;
+}
+
+button:hover {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+}
+
+#sendButton {
+    width: 100%;
+    padding: 11px 16px;
+    margin-top: 14px;
+    font-size: 14px;
+    background: #16794b;
+    border-color: #16794b;
+    color: white;
+}
+
+#sendButton:hover {
+    background: #12663f;
+}
+
+#durum {
+    margin-top: 12px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.dashboard {
+    width: min(94vw, 1750px);
+    margin: 0 auto;
+}
+
+.dashboard-title {
+    margin-bottom: 16px;
+}
+
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: minmax(300px, 0.34fr) minmax(600px, 0.66fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.dashboard-left,
+.dashboard-right {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+@media (max-width: 1000px) {
+    body {
+        padding: 12px;
+    }
+
+    .dashboard {
+        width: 100%;
+    }
+
+    .dashboard-grid {
+        grid-template-columns: 1fr;
     }
 
     .panel {
-      max-width: 700px;
-      margin: auto;
-      background: white;
-      padding: 30px;
-      border-radius: 14px;
-      box-shadow: 0 4px 18px rgba(0,0,0,0.08);
+        padding: 16px;
     }
-
-    h1 {
-      margin-top: 0;
-    }
-
-    label {
-      display: block;
-      font-weight: bold;
-      margin-top: 20px;
-      margin-bottom: 8px;
-    }
-
-    input,
-    textarea {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 12px;
-    }
-
-    textarea {
-      min-height: 150px;
-    }
-
-    button {
-      width: 100%;
-      padding: 15px;
-      margin-top: 25px;
-      font-size: 17px;
-      cursor: pointer;
-    }
-
-    #durum {
-      margin-top: 20px;
-      font-weight: bold;
-    }
+}
   </style>
 </head>
 
 <body>
+  
+<div class="dashboard">
+  <div class="dashboard-grid">
 
+    <div class="dashboard-left">
   <div class="panel">
-
+  
     <h1>AYS WhatsApp Gönderim Paneli</h1>
 
     <label>Ürün görseli</label>
@@ -89,7 +195,9 @@
     <div id="durum"></div>
 
   </div>
- 
+ </div>
+
+    <div class="dashboard-right">
   <div class="panel" style="margin-top: 25px;">
   <h1>Bekleyen Yeni Müşteriler</h1>
 
@@ -138,6 +246,9 @@
     id="campaignFailureDetails"
     style="margin-top:15px;"
   ></div>
+</div>
+      </div>
+  </div>
 </div>
   <script>
 
