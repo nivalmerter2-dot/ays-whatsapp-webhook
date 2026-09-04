@@ -288,7 +288,23 @@ button:hover {
           body: formData
         });
 
-        var result = await response.json();
+        var responseText = await response.text();
+
+if (!responseText) {
+    throw new Error(
+        "Sunucudan boş cevap geldi. Mesajlar gönderilmiş olabilir; tekrar göndermeden önce kampanya raporunu kontrol edin."
+    );
+}
+
+var result;
+
+try {
+    result = JSON.parse(responseText);
+} catch (e) {
+    throw new Error(
+        "Sunucudan geçersiz cevap geldi: " + responseText.substring(0, 200)
+    );
+}
 
         if (!response.ok) {
           durum.innerText =
