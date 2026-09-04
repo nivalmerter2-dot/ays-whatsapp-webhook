@@ -43,7 +43,7 @@ async function sendNtfyT1(message, title = "AYS Müşteri Bildirimi") {
     if (!response.ok) {
       console.error(
         "T1 ntfy bildirimi gönderilemedi:",
-        response.status
+        response.s
       );
       return false;
     }
@@ -267,6 +267,24 @@ await pool.query(`
     stopped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     notified BOOLEAN NOT NULL DEFAULT false,
     notified_at TIMESTAMP
+  );
+`);
+  await pool.query(`
+  CREATE TABLE IF NOT EXISTS message_statuses (
+    id SERIAL PRIMARY KEY,
+    wamid TEXT UNIQUE NOT NULL,
+    phone VARCHAR(30),
+    status VARCHAR(30),
+    error_code VARCHAR(30),
+    error_title TEXT,
+    error_message TEXT,
+    meta_timestamp VARCHAR(30),
+    sent_at TIMESTAMP,
+    delivered_at TIMESTAMP,
+    read_at TIMESTAMP,
+    failed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
 `);
   console.log("Veritabanı tabloları hazır.");
@@ -1083,7 +1101,7 @@ const languageCode =
   } catch (error) {
     console.error("Campaign error:", error);
 
-    res.status(500).json({
+    res.s(500).json({
       error: error.message,
       sent: 0,
       failed: 0
