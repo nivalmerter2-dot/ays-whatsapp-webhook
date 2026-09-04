@@ -371,11 +371,11 @@ if (statusUpdate?.id && statusUpdate?.status) {
         updated_at
       )
      VALUES (
-       $1, $2, $3, $4, $5, $6, $7,
-       CASE WHEN $3 = 'sent' THEN CURRENT_TIMESTAMP ELSE NULL END,
-       CASE WHEN $3 = 'delivered' THEN CURRENT_TIMESTAMP ELSE NULL END,
-       CASE WHEN $3 = 'read' THEN CURRENT_TIMESTAMP ELSE NULL END,
-       CASE WHEN $3 = 'failed' THEN CURRENT_TIMESTAMP ELSE NULL END,
+       $1, $2, $3::VARCHAR, $4, $5, $6, $7,
+       CASE WHEN $3::VARCHAR = 'sent' THEN CURRENT_TIMESTAMP ELSE NULL END,
+CASE WHEN $3::VARCHAR = 'delivered' THEN CURRENT_TIMESTAMP ELSE NULL END,
+CASE WHEN $3::VARCHAR = 'read' THEN CURRENT_TIMESTAMP ELSE NULL END,
+CASE WHEN $3::VARCHAR = 'failed' THEN CURRENT_TIMESTAMP ELSE NULL END,
        CURRENT_TIMESTAMP
      )
      ON CONFLICT (wamid)
