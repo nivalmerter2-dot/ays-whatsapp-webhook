@@ -868,7 +868,19 @@ setInterval(function () {
 
 
 async function showCampaignFailures(campaignId) {
+  var button = document.querySelector("button[onclick='showCampaignFailures(" + campaignId + ")']");
+  var campaignCard = button ? button.closest("div[style*='border:1px solid #ddd']") : null;
+
   var container = document.getElementById("campaignFailureDetails");
+
+  if (campaignCard) {
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "campaignFailureDetails";
+    }
+    container.style.marginTop = "12px";
+    campaignCard.appendChild(container);
+  }
 
   try {
     container.innerHTML = "Hata veren numaralar yükleniyor...";
