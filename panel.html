@@ -1121,7 +1121,7 @@ async function importCustomersFromExcel(input) {
     if (statusBox) {
       statusBox.innerText = message;
     }
-
+    alert(message);
     input.value = "";
 
     await loadCustomerPortfolio();
