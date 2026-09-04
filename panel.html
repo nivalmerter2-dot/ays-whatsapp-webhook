@@ -119,6 +119,26 @@
     Spam listesi yükleniyor...
   </div>
 </div>
+  <div class="panel" style="margin-top:25px;">
+  <h1>Kampanya Raporları</h1>
+
+  <button
+    type="button"
+    onclick="loadCampaignReports()"
+    style="margin-bottom:10px;"
+  >
+    RAPORLARI YENİLE
+  </button>
+
+  <div id="campaignReports">
+    Kampanya raporları yükleniyor...
+  </div>
+
+  <div
+    id="campaignFailureDetails"
+    style="margin-top:15px;"
+  ></div>
+</div>
   <script>
 
     var sendButton = document.getElementById("sendButton");
@@ -678,6 +698,172 @@ setInterval(function () {
         loadPendingCustomers();
     }
 }, 300000);
+    async function loadCampaignReports() {
+  var container = document.getElementById("campaignReports");
+
+  try {
+    container.innerHTML = "Kampanya raporları yükleniyor...";
+
+    var response = await fetch("/api/campaign-reports");
+    var data = await response.json();
+
+    if (!response.ok || !data.success) {
+      container.innerHTML = "Kampanya raporları alınamadı.";
+      return;
+    }
+
+    if (!data.campaigns || data.campaigns.length === 0) {
+      container.innerHTML = "Henüz kampanya raporu bulunmuyor.";
+      return;
+    }
+
+    var html = "";
+
+    data.campaigns.forEach(function (campaign) {
+      var target = Number(campaign.total_recipients || 0);
+      var accepted = Number(campaign.accepted_count || 0);
+      var initialFailed = Number(campaign.initial_failed_count || 0);
+      var sent = Number(campaign.sent_count || 0);
+      var delivered = Number(campaign.delivered_count || 0);
+      var read = Number(campaign.read_count || 0);
+      var deliveryFailed = Number(campaign.delivery_failed_count || 0);
+
+      var deliveryRate =
+        accepted > 0 ? ((delivered / accepted) * 100).toFixed(1) : "0.0";
+
+      var readRate =
+        delivered > 0 ? ((read / delivered) * 100).toFixed(1) : "0.0";
+
+      var failureRate =
+        accepted > 0 ? ((deliveryFailed / accepted) * 100).toFixed(1) : "0.0";
+
+      var dateText = campaign.created_at
+        ? new Date(campaign.created_at).toLocaleString("tr-TR")
+        : "-";
+
+      var campaignErrors = (data.error_summary || []).filter(function (item) {
+        return String(item.campaign_id) === String(campaign.id);
+      });
+
+      var errorHtml = "";
+
+      if (campaignErrors.length > 0) {
+        errorHtml = "<div style='margin-top:8px;'><strong>Hata Kodları:</strong>";
+
+        campaignErrors.forEach(function (item) {
+          errorHtml +=
+            "<div style='padding:4px 0;'>" +
+            "<strong>" + (item.error_code || "Kod yok") + "</strong>" +
+            " — " + item.error_count + " kişi" +
+            (item.error_title ? " — " + item.error_title : "") +
+            "</div>";
+        });
+
+        errorHtml += "</div>";
+      }
+
+      html +=
+        "<div style='border:1px solid #ddd; border-radius:8px; padding:12px; margin-bottom:12px;'>" +
+          "<div style='font-size:16px; font-weight:bold; margin-bottom:8px;'>" +
+            "Kampanya #" + campaign.id + " — " + dateText +
+          "</div>" +
+
+          "<div><strong>Hedef:</strong> " + target + "</div>" +
+          "<div><strong>Meta kabul:</strong> " + accepted + "</div>" +
+          "<div><strong>Başlangıçta başarısız / atlanan:</strong> " + initialFailed + "</div>" +
+          "<div><strong>Gönderildi:</strong> " + sent + "</div>" +
+          "<div><strong>Teslim edildi:</strong> " + delivered +
+            " (%" + deliveryRate + ")</div>" +
+          "<div><strong>Okundu:</strong> " + read +
+            " (%" + readRate + ")</div>" +
+          "<div><strong>Teslim edilemedi:</strong> " + deliveryFailed +
+            " (%" + failureRate + ")</div>" +
+
+          errorHtml +
+
+          "<button type='button' " +
+            "onclick='showCampaignFailures(" + campaign.id + ")' " +
+            "style='margin-top:10px;'>" +
+            "HATA VEREN NUMARALARI GÖSTER" +
+          "</button>" +
+        "</div>";
+    });
+
+    container.innerHTML = html;
+
+  } catch (error) {
+    console.error("Kampanya raporu bağlantı hatası:", error);
+    container.innerHTML = "Kampanya raporları yüklenirken bağlantı hatası oluştu.";
+  }
+}
+
+
+async function showCampaignFailures(campaignId) {
+  var container = document.getElementById("campaignFailureDetails");
+
+  try {
+    container.innerHTML = "Hata veren numaralar yükleniyor...";
+
+    var response = await fetch("/api/campaign-failures");
+    var data = await response.json();
+
+    if (!response.ok || !data.success) {
+      container.innerHTML = "Hata detayları alınamadı.";
+      return;
+    }
+
+    var failures = (data.failures || []).filter(function (item) {
+      return String(item.campaign_id) === String(campaignId);
+    });
+
+    if (failures.length === 0) {
+      container.innerHTML =
+        "<div style='padding:10px; border:1px solid #ddd;'>" +
+        "Bu kampanyada Meta teslimat hatası görünmüyor." +
+        "</div>";
+      return;
+    }
+
+    var html =
+      "<div style='border:1px solid #bbb; border-radius:8px; padding:12px;'>" +
+      "<h2>Kampanya #" + campaignId + " — Hata Veren Numaralar</h2>";
+
+    failures.forEach(function (item) {
+      html +=
+        "<div style='padding:10px 0; border-bottom:1px solid #ddd;'>" +
+          "<strong>Telefon:</strong> " + (item.phone || "-") + "<br>" +
+          "<strong>Hata kodu:</strong> " + (item.error_code || "Kod yok") + "<br>" +
+          "<strong>Açıklama:</strong> " +
+            (item.error_title || item.error_message || "-") + "<br>" +
+          "<strong>Toplam teslimat hatası:</strong> " +
+            item.total_failures + "<br>" +
+          "<strong>Aynı hata kodu:</strong> " +
+            item.same_error_failures + " kez<br>" +
+          "<strong>Hata yaşadığı kampanya:</strong> " +
+            item.failed_campaign_count + " farklı kampanya" +
+        "</div>";
+    });
+
+    html +=
+      "<button type='button' onclick='closeCampaignFailures()' " +
+      "style='margin-top:10px;'>DETAYI KAPAT</button>" +
+      "</div>";
+
+    container.innerHTML = html;
+
+  } catch (error) {
+    console.error("Hata detayları bağlantı hatası:", error);
+    container.innerHTML = "Hata detayları yüklenirken bağlantı hatası oluştu.";
+  }
+}
+
+
+function closeCampaignFailures() {
+  document.getElementById("campaignFailureDetails").innerHTML = "";
+}
+
+
+loadCampaignReports();
   </script>
 
 </body>
