@@ -1160,19 +1160,36 @@ app.post(
           continue;
         }
 
-        // Türkiye'de 05xx... şeklinde yazılmışsa 90'a çevir.
-        if (phone.length === 11 && phone.startsWith("0")) {
-          phone = "90" + phone.substring(1);
-        }
+        // Telefon kontrolü müşteri grubuna göre yapılır.
+let validPhone = false;
 
-        // 5xx... şeklinde yazılmışsa 90 ekle.
-        if (phone.length === 10 && phone.startsWith("5")) {
-          phone = "90" + phone;
-        }
+if (customerGroup === "Yerli") {
 
-        const validPhone =
-          phone.length === 12 &&
-          phone.startsWith("90");
+  // 05xx... şeklindeyse 905xx... yap.
+  if (phone.length === 11 && phone.startsWith("0")) {
+    phone = "90" + phone.substring(1);
+  }
+
+  // 5xx... şeklindeyse 905xx... yap.
+  if (phone.length === 10 && phone.startsWith("5")) {
+    phone = "90" + phone;
+  }
+
+  // Yerli müşteri: 90 + 10 hane olmalı.
+  validPhone =
+    phone.length === 12 &&
+    phone.startsWith("90");
+
+} else if (customerGroup === "Yabancı") {
+
+  // Yabancı numaraya 90 EKLEME.
+  // Uluslararası numaralarda ülkeye göre uzunluk değişebilir.
+  // E.164 sınırına uygun genel kontrol:
+  validPhone =
+    phone.length >= 7 &&
+    phone.length <= 15 &&
+    !phone.startsWith("0");
+}
 
         const validRepresentative =
           ["T1", "T2", "T3", "T4"].includes(representativeId);
