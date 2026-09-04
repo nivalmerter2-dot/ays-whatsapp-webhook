@@ -1605,7 +1605,7 @@ app.post("/send-campaign", upload.single("image"), async (req, res) => {
     const mediaId = mediaData.id;
     const campaignResult = await pool.query(
   `INSERT INTO campaigns
-    (total_recipients, accepted_count, api_failed_count)
+    (total_recipients, accepted_count, initial_failed_count)
    VALUES ($1, 0, 0)
    RETURNING id`,
   [numbers.length]
