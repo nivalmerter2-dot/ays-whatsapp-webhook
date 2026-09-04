@@ -941,13 +941,16 @@ setInterval(function () {
 
       if (campaignErrors.length > 0) {
         errorHtml = "<div style='margin-top:8px;'><strong>Hata Kodları:</strong>";
-
+      
         campaignErrors.forEach(function (item) {
+          var turkishErrorMessages = {};
+          turkishErrorMessages["131049"] = "Meta, sağlıklı mesajlaşma etkileşimini korumak amacıyla bu mesajı teslim etmedi.";
+          var errorDescription = turkishErrorMessages[String(item.error_code)] || item.error_title || "Bilinmeyen Meta teslimat hatası";
           errorHtml +=
             "<div style='padding:4px 0;'>" +
             "<strong>" + (item.error_code || "Kod yok") + "</strong>" +
             " — " + item.error_count + " kişi" +
-            (item.error_title ? " — " + item.error_title : "") +
+           " — " + errorDescription +
             "</div>";
         });
 
