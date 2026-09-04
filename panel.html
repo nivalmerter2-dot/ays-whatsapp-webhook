@@ -401,7 +401,29 @@ async function rejectCustomer(id) {
       <option value="passive">Pasif</option>
     </select>
   </div>
+<div style="margin:10px 0 14px 0;">
+  <button
+    type="button"
+    onclick="addFilteredCustomersToCampaign()"
+  >
+    FİLTRELENENLERİ KAMPANYAYA EKLE
+  </button>
 
+  <button
+    type="button"
+    onclick="clearCampaignRecipients()"
+    style="margin-left:8px;"
+  >
+    KAMPANYA SEÇİMİNİ TEMİZLE
+  </button>
+
+  <div
+    id="campaignRecipientSummary"
+    style="margin-top:8px; font-weight:bold;"
+  >
+    Kampanya alıcısı seçilmedi.
+  </div>
+</div>
   <div id="portfolioRows"></div>
 `;
 
@@ -467,7 +489,7 @@ renderCustomerPortfolio();
                matchesGroup &&
                matchesStatus;
     });
-
+  window.currentFilteredCustomers = filteredCustomers;
     if (filteredCustomers.length === 0) {
         rowsContainer.innerHTML =
             '<div style="padding:12px;">Filtreye uygun müşteri bulunamadı.</div>';
@@ -862,8 +884,77 @@ function closeCampaignFailures() {
   document.getElementById("campaignFailureDetails").innerHTML = "";
 }
 
-
 loadCampaignReports();
+    window.campaignRecipients = window.campaignRecipients || new Map();
+
+function addFilteredCustomersToCampaign() {
+  var filtered = window.currentFilteredCustomers || [];
+
+  // Kampanyaya yalnızca aktif ve telefonu bulunan müşteriler alınır.
+  var activeCustomers = filtered.filter(function (customer) {
+    return customer.status === "active" && customer.phone;
+  });
+
+  var beforeCount = window.campaignRecipients.size;
+
+  activeCustomers.forEach(function (customer) {
+    var phone = String(customer.phone || "").replace(/\D/g, "");
+
+    if (!phone) return;
+
+    // Telefon numarası anahtar olduğu için aynı müşteri ikinci kez eklenmez.
+    window.campaignRecipients.set(phone, {
+      phone: phone,
+      customer_name: customer.customer_name || "İsimsiz Müşteri",
+      representative_id: customer.representative_id || "",
+      customer_group: customer.customer_group || ""
+    });
+  });
+
+  var afterCount = window.campaignRecipients.size;
+  var newlyAdded = afterCount - beforeCount;
+
+  syncCampaignRecipientsToInput();
+
+  var summary = document.getElementById("campaignRecipientSummary");
+
+  if (summary) {
+    summary.innerHTML =
+      "Kampanya alıcıları: <strong>" +
+      afterCount +
+      " benzersiz aktif müşteri</strong>" +
+      " — Son seçimden " +
+      newlyAdded +
+      " yeni müşteri eklendi.";
+  }
+}
+
+function syncCampaignRecipientsToInput() {
+  var numbersInput = document.getElementById("numbers");
+
+  if (!numbersInput) return;
+
+  var phones = Array.from(window.campaignRecipients.keys());
+
+  numbersInput.value = phones.join("\n");
+}
+
+
+function clearCampaignRecipients() {
+  window.campaignRecipients.clear();
+
+  var numbersInput = document.getElementById("numbers");
+
+  if (numbersInput) {
+    numbersInput.value = "";
+  }
+
+  var summary = document.getElementById("campaignRecipientSummary");
+
+  if (summary) {
+    summary.innerHTML = "Kampanya alıcısı seçilmedi.";
+  }
+}
   </script>
 
 </body>
