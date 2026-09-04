@@ -424,6 +424,49 @@ async function rejectCustomer(id) {
     Kampanya alıcısı seçilmedi.
   </div>
 </div>
+<div style="margin:12px 0 14px 0; padding-top:10px; border-top:1px solid #ddd;">
+
+  <strong>Excel İşlemleri</strong>
+
+  <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+
+    <button
+      type="button"
+      onclick="exportFilteredCustomersToExcel()"
+    >
+      FİLTRELENENLERİ EXCEL'E AKTAR
+    </button>
+
+    <button
+      type="button"
+      onclick="document.getElementById('customerExcelFile').click()"
+    >
+      EXCEL'DEN MÜŞTERİ İÇE AKTAR
+    </button>
+
+    <button
+      type="button"
+      onclick="downloadCustomerExcelTemplate()"
+    >
+      ÖRNEK EXCEL ŞABLONU
+    </button>
+
+    <input
+      id="customerExcelFile"
+      type="file"
+      accept=".xlsx,.xls"
+      style="display:none;"
+      onchange="importCustomersFromExcel(this)"
+    >
+
+  </div>
+
+  <div
+    id="excelImportStatus"
+    style="margin-top:8px;"
+  ></div>
+
+</div>
   <div id="portfolioRows"></div>
 `;
 
