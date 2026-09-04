@@ -287,6 +287,21 @@ await pool.query(`
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
 `);
+  await pool.query(`
+  CREATE TABLE IF NOT EXISTS campaigns (
+    id SERIAL PRIMARY KEY,
+    total_recipients INTEGER NOT NULL DEFAULT 0,
+    accepted_count INTEGER NOT NULL DEFAULT 0,
+    initial_failed_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+await pool.query(`
+  ALTER TABLE message_statuses
+  ADD COLUMN IF NOT EXISTS campaign_id INTEGER
+`);
   console.log("Veritabanı tabloları hazır.");
 }
 
@@ -737,6 +752,136 @@ app.get("/api/message-statuses", async (req, res) => {
     });
   }
 });
+app.get("/api/campaign-reports", async (req, res) => {
+  try {
+    const campaignsResult = await pool.query(`
+      SELECT
+        c.id,
+        c.total_recipients,
+        c.accepted_count,
+        c.initial_failed_count,
+        c.created_at,
+        c.updated_at,
+
+        COUNT(ms.id) FILTER (
+          WHERE ms.sent_at IS NOT NULL
+        )::int AS sent_count,
+
+        COUNT(ms.id) FILTER (
+          WHERE ms.delivered_at IS NOT NULL
+        )::int AS delivered_count,
+
+        COUNT(ms.id) FILTER (
+          WHERE ms.read_at IS NOT NULL
+        )::int AS read_count,
+
+        COUNT(ms.id) FILTER (
+          WHERE ms.failed_at IS NOT NULL
+        )::int AS delivery_failed_count
+
+      FROM campaigns c
+
+      LEFT JOIN message_statuses ms
+        ON ms.campaign_id = c.id
+
+      GROUP BY c.id
+      ORDER BY c.created_at DESC
+      LIMIT 100
+    `);
+
+    const errorResult = await pool.query(`
+      SELECT
+        ms.campaign_id,
+        ms.error_code,
+        COALESCE(ms.error_title, '') AS error_title,
+        COALESCE(ms.error_message, '') AS error_message,
+        COUNT(*)::int AS error_count
+      FROM message_statuses ms
+      WHERE ms.failed_at IS NOT NULL
+      GROUP BY
+        ms.campaign_id,
+        ms.error_code,
+        ms.error_title,
+        ms.error_message
+      ORDER BY ms.campaign_id DESC, error_count DESC
+    `);
+
+    res.json({
+      success: true,
+      campaigns: campaignsResult.rows,
+      error_summary: errorResult.rows
+    });
+
+  } catch (error) {
+    console.error("Kampanya raporu alınamadı:", error);
+
+    res.status(500).json({
+      success: false,
+      error: "Kampanya raporu alınamadı."
+    });
+  }
+});
+app.get("/api/campaign-failures", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        ms.campaign_id,
+        ms.phone,
+        ms.wamid,
+        ms.error_code,
+        COALESCE(ms.error_title, '') AS error_title,
+        COALESCE(ms.error_message, '') AS error_message,
+        ms.failed_at,
+
+        (
+          SELECT COUNT(*)
+          FROM message_statuses history
+          WHERE history.phone = ms.phone
+            AND history.failed_at IS NOT NULL
+        )::int AS total_failures,
+
+        (
+          SELECT COUNT(*)
+          FROM message_statuses same_error
+          WHERE same_error.phone = ms.phone
+            AND same_error.failed_at IS NOT NULL
+            AND same_error.error_code IS NOT DISTINCT FROM ms.error_code
+        )::int AS same_error_failures,
+
+        (
+          SELECT COUNT(DISTINCT history_campaign.campaign_id)
+          FROM message_statuses history_campaign
+          WHERE history_campaign.phone = ms.phone
+            AND history_campaign.failed_at IS NOT NULL
+            AND history_campaign.campaign_id IS NOT NULL
+        )::int AS failed_campaign_count
+
+      FROM message_statuses ms
+
+      WHERE ms.failed_at IS NOT NULL
+
+      ORDER BY
+        ms.failed_at DESC,
+        ms.phone ASC
+
+      LIMIT 1000
+    `);
+
+    res.json({
+      success: true,
+      total: result.rows.length,
+      failures: result.rows
+    });
+
+  } catch (error) {
+    console.error("Kampanya hata detayları alınamadı:", error);
+
+    res.status(500).json({
+      success: false,
+      error: "Kampanya hata detayları alınamadı."
+    });
+  }
+});
 app.post("/api/reject-customer", async (req, res) => {
   const { id } = req.body;
 
@@ -745,7 +890,6 @@ app.post("/api/reject-customer", async (req, res) => {
       error: "Müşteri bilgisi gerekli."
     });
   }
-
   const client = await pool.connect();
 
   try {
@@ -1135,7 +1279,22 @@ app.post("/send-campaign", upload.single("image"), async (req, res) => {
     }
 
     const mediaId = mediaData.id;
+    const campaignResult = await pool.query(
+  `INSERT INTO campaigns
+    (total_recipients, accepted_count, api_failed_count)
+   VALUES ($1, 0, 0)
+   RETURNING id`,
+  [numbers.length]
+);
 
+const campaignId = campaignResult.rows[0].id;
+
+console.log(
+  "Yeni kampanya oluşturuldu:",
+  campaignId,
+  "Hedef:",
+  numbers.length
+);
     let sent = 0;
     let failed = 0;
     const errors = [];
@@ -1216,14 +1375,15 @@ const languageCode =
 
 if (wamid) {
   await pool.query(
-    `INSERT INTO message_statuses
-      (wamid, phone, status, updated_at)
-     VALUES ($1, $2, 'accepted', CURRENT_TIMESTAMP)
+   INSERT INTO message_statuses
+  (wamid, phone, campaign_id, status, updated_at)
+VALUES ($1, $2, $3, 'accepted', CURRENT_TIMESTAMP)
      ON CONFLICT (wamid)
      DO UPDATE SET
        phone = COALESCE(message_statuses.phone, EXCLUDED.phone),
+         campaign_id = COALESCE(message_statuses.campaign_id, EXCLUDED.campaign_id),
        updated_at = CURRENT_TIMESTAMP`,
-    [wamid, to]
+    [wamid, to, campaignId]
   );
 
   console.log("Meta mesaj kabul kaydı oluşturuldu:", to, wamid);
@@ -1236,7 +1396,15 @@ if (wamid) {
         });
       }
     }
-
+  await pool.query(
+  `UPDATE campaigns
+   SET
+     accepted_count = $1,
+     initial_failed_count = $2,
+     updated_at = CURRENT_TIMESTAMP
+   WHERE id = $3`,
+  [sent, failed, campaignId]
+);
     res.json({
       success: failed === 0,
       sent: sent,
