@@ -722,6 +722,7 @@ app.get("/api/message-statuses", async (req, res) => {
         id,
         wamid,
         phone,
+        campaign_id,
         status,
         error_code,
         error_title,
