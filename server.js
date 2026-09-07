@@ -96,6 +96,126 @@ async function sendNtfyForRepresentative(topic, representativeId, message) {
   }
 }
 
+
+async function sendStopNtfyForRepresentative(topic, representativeId, message) {
+  if (!topic) {
+    console.error("STOP bildirimi için NTFY topic tanımlı değil: " + representativeId);
+    return false;
+  }
+
+  try {
+    const response = await fetch(
+      `https://ntfy.sh/${topic}`,
+      {
+        method: "POST",
+        headers: {
+          "Title": "AYS - Mesaj Almak Istemeyenler",
+          "Priority": "high",
+          "Tags": "no_entry_sign"
+        },
+        body: message
+      }
+    );
+
+    if (!response.ok) {
+      console.error(
+        representativeId + " STOP ntfy bildirimi gönderilemedi:",
+        response.status
+      );
+      return false;
+    }
+
+    console.log(representativeId + " STOP ntfy bildirimi gönderildi.");
+    return true;
+
+  } catch (error) {
+    console.error(
+      representativeId + " STOP ntfy bağlantı hatası:",
+      error
+    );
+    return false;
+  }
+}
+
+
+async function sendPendingStopNotifications(
+  representativeId,
+  topic,
+  localDate,
+  cutoffHour
+) {
+  try {
+    const result = await pool.query(
+      `SELECT id, customer_name, phone
+       FROM stop_requests
+       WHERE representative_id = $1
+         AND notified = false
+         AND stopped_at <= (
+           (
+             $2::date + ($3::int * INTERVAL '1 hour')
+           ) AT TIME ZONE 'Europe/Istanbul'
+         ) AT TIME ZONE 'UTC'
+       ORDER BY stopped_at ASC`,
+      [representativeId, localDate, cutoffHour]
+    );
+
+    if (result.rows.length === 0) {
+      return 0;
+    }
+
+    const messageLines = result.rows.map((customer, index) => {
+      const name = customer.customer_name || "İsimsiz Müşteri";
+      return `${index + 1}. ${name}\nTelefon: ${customer.phone}`;
+    });
+
+    const message =
+      "Mesaj almak istemeyen müşteriler:\n\n" +
+      messageLines.join("\n\n") +
+      `\n\nToplam: ${result.rows.length} müşteri`;
+
+    const sent = await sendStopNtfyForRepresentative(
+      topic,
+      representativeId,
+      message
+    );
+
+    if (!sent) {
+      console.error(
+        representativeId +
+        " STOP talepleri bildirilmedi; kayıtlar beklemede bırakıldı."
+      );
+      return 0;
+    }
+
+    const ids = result.rows.map((customer) => customer.id);
+
+    await pool.query(
+      `UPDATE stop_requests
+       SET notified = true,
+           notified_at = CURRENT_TIMESTAMP
+       WHERE id = ANY($1::int[])`,
+      [ids]
+    );
+
+    console.log(
+      representativeId +
+      " için " +
+      result.rows.length +
+      " mesaj almak istemeyen müşteri bildirildi."
+    );
+
+    return result.rows.length;
+
+  } catch (error) {
+    console.error(
+      representativeId + " STOP toplu bildirim hatası:",
+      error
+    );
+    return 0;
+  }
+}
+
+
 async function sendPendingT1Notifications() {
   try {
     const result = await pool.query(
@@ -1739,7 +1859,7 @@ VALUES ($1, $2, $3, 'accepted', CURRENT_TIMESTAMP)
   } catch (error) {
     console.error("Campaign error:", error);
 
-    res.s(500).json({
+    res.status(500).json({
       error: error.message,
       sent: 0,
       failed: 0
@@ -1838,7 +1958,94 @@ await sendPendingRepresentativeNotifications("T4", NTFY_T4_TOPIC);
 }
 }
 
+
+function getTurkeyStopScheduleInfo() {
+  const now = new Date();
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Istanbul",
+    weekday: "short",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).formatToParts(now);
+
+  const getPart = (type) =>
+    parts.find((part) => part.type === type)?.value;
+
+  return {
+    weekday: getPart("weekday"),
+    year: getPart("year"),
+    month: getPart("month"),
+    day: getPart("day"),
+    hour: Number(getPart("hour")),
+    minute: Number(getPart("minute"))
+  };
+}
+
+
+async function runStopNotificationScheduler() {
+  const info = getTurkeyStopScheduleInfo();
+
+  // Pazar günü STOP özeti gönderilmez.
+  if (info.weekday === "Sun") {
+    return;
+  }
+
+  // Cumartesi 13:00, Pazartesi-Cuma 18:00.
+  const cutoffHour = info.weekday === "Sat" ? 13 : 18;
+  const currentMinutes = info.hour * 60 + info.minute;
+  const cutoffMinutes = cutoffHour * 60;
+
+  if (currentMinutes < cutoffMinutes) {
+    return;
+  }
+
+  // Render servisinin tam saatinde uykuda olması ihtimaline karşı
+  // kesim saatinden sonra her 5 dakikada bir kontrol edilir.
+  // Sadece kesim saatinden önce oluşmuş ve notified=false olan kayıtlar alınır.
+  if (info.minute % 5 !== 0) {
+    return;
+  }
+
+  const localDate =
+    info.year + "-" + info.month + "-" + info.day;
+
+  await sendPendingStopNotifications(
+    "T1",
+    NTFY_T1_TOPIC,
+    localDate,
+    cutoffHour
+  );
+
+  await sendPendingStopNotifications(
+    "T2",
+    NTFY_T2_TOPIC,
+    localDate,
+    cutoffHour
+  );
+
+  await sendPendingStopNotifications(
+    "T3",
+    NTFY_T3_TOPIC,
+    localDate,
+    cutoffHour
+  );
+
+  await sendPendingStopNotifications(
+    "T4",
+    NTFY_T4_TOPIC,
+    localDate,
+    cutoffHour
+  );
+}
+
+
 setInterval(runT1NotificationScheduler, 60 * 1000);
+setInterval(runStopNotificationScheduler, 60 * 1000);
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Webhook ${PORT} portunda çalışıyor.`);
