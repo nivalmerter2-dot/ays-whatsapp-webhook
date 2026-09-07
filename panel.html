@@ -103,7 +103,59 @@ button:hover{background:#f4f7fb}
 <section id="view-portfolio" class="view"><h2 class="viewtitle">Müşteri Portföyü</h2><div class="card"><div id="customerPortfolio">Müşteri portföyü yükleniyor...</div></div></section>
 <section id="view-pending" class="view"><h2 class="viewtitle">Bekleyen Yeni Müşteriler</h2><div class="card"><div id="pendingCustomers">Bekleyen müşteriler yükleniyor...</div></div></section>
 <section id="view-spam" class="view"><h2 class="viewtitle">Spam / Reddedilenler</h2><div class="card"><input id="rejectedSearch" type="text" placeholder="İsim veya telefon ara..." oninput="renderRejectedCustomers()" style="margin-bottom:10px"><div id="rejectedCustomers">Spam listesi yükleniyor...</div></div></section>
-<section id="view-reports" class="view"><h2 class="viewtitle">Kampanya Raporları</h2><div class="card"><button type="button" onclick="loadCampaignReports()" style="margin-bottom:10px">RAPORLARI YENİLE</button><div id="campaignReports">Kampanya raporları yükleniyor...</div><div id="campaignFailureDetails" style="margin-top:15px"></div></div></section>
+<section id="view-reports" class="view"><h2 class="viewtitle">Kampanya Raporları</h2><div class="card"><button type="button" onclick="loadCampaignReports()" style="margin-bottom:10px">RAPORLARI YENİLE</button><div id="campaignReports">Kampanya raporları yükleniyor...</div>
+<div id="campaignFailureDetails" style="margin-top:15px"></div>
+
+<div style="border-top:1px solid #e5eaf1;margin-top:22px;padding-top:18px">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+    <div>
+      <h2 style="margin:0 0 4px">Hata Yönetimi</h2>
+      <p style="margin:0">Tüm kampanyalardaki teslimat hatalarını filtreleyin ve müşteri durumunu yönetin.</p>
+    </div>
+    <button type="button" onclick="loadFailureManagement()">HATALARI YENİLE</button>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin:14px 0">
+    <input id="failureSearch" type="text" placeholder="İsim veya telefon ara..." oninput="renderFailureManagement()" style="min-width:210px;flex:2">
+    <select id="failureCodeFilter" onchange="renderFailureManagement()" style="min-width:140px;flex:1">
+      <option value="">Tüm Hata Kodları</option>
+      <option value="131026">131026</option>
+      <option value="130472">130472</option>
+      <option value="131049">131049</option>
+      <option value="other">Diğer</option>
+    </select>
+    <select id="failureRepFilter" onchange="renderFailureManagement()" style="min-width:150px;flex:1">
+      <option value="">Tüm Temsilciler</option>
+      <option value="T1">Ali Merter</option>
+      <option value="T2">Harun Merter</option>
+      <option value="T3">Muhammed Merter</option>
+      <option value="T4">İshak Merter</option>
+    </select>
+    <select id="failureStatusFilter" onchange="renderFailureManagement()" style="min-width:120px;flex:1">
+      <option value="">Aktif + Pasif</option>
+      <option value="active">Aktif</option>
+      <option value="passive">Pasif</option>
+    </select>
+    <select id="failureRepeatFilter" onchange="renderFailureManagement()" style="min-width:130px;flex:1">
+      <option value="0">Tüm Tekrarlar</option>
+      <option value="2">2+ Aynı Hata</option>
+      <option value="3">3+ Aynı Hata</option>
+    </select>
+    <select id="failureCampaignCountFilter" onchange="renderFailureManagement()" style="min-width:150px;flex:1">
+      <option value="0">Tüm Kampanyalar</option>
+      <option value="2">2+ Farklı Kampanya</option>
+      <option value="3">3+ Farklı Kampanya</option>
+    </select>
+    <select id="failureCandidateFilter" onchange="renderFailureManagement()" style="min-width:160px;flex:1">
+      <option value="">Tüm Kayıtlar</option>
+      <option value="candidate">Pasife Alma Adayları</option>
+    </select>
+  </div>
+
+  <div id="failureManagementSummary" style="margin-bottom:10px"></div>
+  <div id="failureManagement">Hata yönetimi yükleniyor...</div>
+</div>
+</div></section>
 </main>
 </div>
 
@@ -112,7 +164,7 @@ function showView(name){
  document.querySelectorAll(".view").forEach(function(v){v.classList.remove("active")});
  var v=document.getElementById("view-"+name);if(v)v.classList.add("active");
  document.querySelectorAll(".nav button").forEach(function(b){b.classList.toggle("active",b.dataset.view===name)});
- if(name==="reports")loadCampaignReports(); if(name==="portfolio")loadCustomerPortfolio(); if(name==="pending")loadPendingCustomers(); if(name==="spam")loadRejectedCustomers();
+ if(name==="reports"){loadCampaignReports();loadFailureManagement();} if(name==="portfolio")loadCustomerPortfolio(); if(name==="pending")loadPendingCustomers(); if(name==="spam")loadRejectedCustomers();
  window.scrollTo({top:0,behavior:"smooth"});
 }
 document.querySelectorAll(".nav button").forEach(function(b){b.onclick=function(){showView(b.dataset.view)}});
@@ -1157,6 +1209,179 @@ async function importCustomersFromExcel(input) {
 }
   
 refreshDashboardStats();
+
+var failureManagementData = [];
+
+function failureRepName(id) {
+  return {
+    T1: "Ali Merter",
+    T2: "Harun Merter",
+    T3: "Muhammed Merter",
+    T4: "İshak Merter"
+  }[id] || id || "-";
+}
+
+function failureErrorText(item) {
+  var messages = {
+    "131026": "Mesaj teslim edilemedi. Tekrarlayan kayıtları kampanya geçmişiyle birlikte takip edin.",
+    "130472": "Meta deney / gönderim kısıtlaması. Tek başına pasife alma nedeni değildir.",
+    "131049": "Meta, sağlıklı mesajlaşma etkileşimini korumak amacıyla pazarlama mesajını teslim etmedi."
+  };
+  return messages[String(item.error_code || "")] ||
+    item.error_title || item.error_message || "Bilinmeyen Meta teslimat hatası";
+}
+
+function isOtherFailureCode(code) {
+  code = String(code || "");
+  return code !== "131026" && code !== "130472" && code !== "131049";
+}
+
+async function loadFailureManagement() {
+  var container = document.getElementById("failureManagement");
+  if (!container) return;
+
+  try {
+    container.innerHTML = "Hata kayıtları yükleniyor...";
+    var response = await fetch("/api/campaign-failures");
+    var data = await response.json();
+
+    if (!response.ok || !data.success) {
+      container.innerHTML = "Hata kayıtları alınamadı.";
+      return;
+    }
+
+    failureManagementData = data.failures || [];
+    renderFailureManagement();
+  } catch (error) {
+    console.error("Hata yönetimi bağlantı hatası:", error);
+    container.innerHTML = "Hata kayıtları yüklenirken bağlantı hatası oluştu.";
+  }
+}
+
+function renderFailureManagement() {
+  var container = document.getElementById("failureManagement");
+  var summary = document.getElementById("failureManagementSummary");
+  if (!container) return;
+
+  var search = (document.getElementById("failureSearch")?.value || "")
+    .toLocaleLowerCase("tr-TR").trim();
+  var code = document.getElementById("failureCodeFilter")?.value || "";
+  var rep = document.getElementById("failureRepFilter")?.value || "";
+  var status = document.getElementById("failureStatusFilter")?.value || "";
+  var repeat = Number(document.getElementById("failureRepeatFilter")?.value || 0);
+  var campaignCount = Number(document.getElementById("failureCampaignCountFilter")?.value || 0);
+  var candidateOnly = document.getElementById("failureCandidateFilter")?.value === "candidate";
+
+  var filtered = failureManagementData.filter(function(item) {
+    var name = String(item.customer_name || "").toLocaleLowerCase("tr-TR");
+    var phone = String(item.phone || "");
+    var isCandidate =
+      String(item.error_code || "") === "131026" &&
+      Number(item.failed_campaign_count || 0) >= 3;
+
+    var codeMatches =
+      !code ||
+      (code === "other"
+        ? isOtherFailureCode(item.error_code)
+        : String(item.error_code || "") === code);
+
+    return (!search || name.includes(search) || phone.includes(search)) &&
+      codeMatches &&
+      (!rep || item.representative_id === rep) &&
+      (!status || item.customer_status === status) &&
+      Number(item.same_error_failures || 0) >= repeat &&
+      Number(item.failed_campaign_count || 0) >= campaignCount &&
+      (!candidateOnly || isCandidate);
+  });
+
+  var uniquePhones = new Set(filtered.map(function(x) { return x.phone; })).size;
+  var candidates = filtered.filter(function(x) {
+    return String(x.error_code || "") === "131026" &&
+      Number(x.failed_campaign_count || 0) >= 3;
+  }).length;
+
+  if (summary) {
+    summary.innerHTML =
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      '<div style="padding:9px 12px;background:#f8fafc;border:1px solid #e5eaf1;border-radius:8px"><b>' +
+      filtered.length + '</b> hata kaydı</div>' +
+      '<div style="padding:9px 12px;background:#f8fafc;border:1px solid #e5eaf1;border-radius:8px"><b>' +
+      uniquePhones + '</b> farklı müşteri</div>' +
+      '<div style="padding:9px 12px;background:#fff6df;border:1px solid #f0dfae;border-radius:8px"><b>' +
+      candidates + '</b> pasife alma adayı</div>' +
+      '</div>';
+  }
+
+  if (!filtered.length) {
+    container.innerHTML = "Filtreye uygun hata kaydı bulunamadı.";
+    return;
+  }
+
+  var html =
+    '<div style="overflow:auto;border:1px solid #e5eaf1;border-radius:9px">' +
+    '<table style="width:100%;border-collapse:collapse;min-width:1050px">' +
+    '<thead><tr style="background:#f8fafc">' +
+    '<th style="padding:8px">Müşteri</th><th>Telefon</th><th>Temsilci</th><th>Grup</th>' +
+    '<th>Hata</th><th>Aynı Hata</th><th>Farklı Kampanya</th><th>Son Hata</th>' +
+    '<th>Durum</th><th>İşlem</th></tr></thead><tbody>';
+
+  filtered.forEach(function(item) {
+    var isCandidate =
+      String(item.error_code || "") === "131026" &&
+      Number(item.failed_campaign_count || 0) >= 3;
+
+    var active = item.customer_status === "active";
+    var newStatus = active ? "passive" : "active";
+    var buttonText = active ? "PASİFE AL" : "AKTİFLEŞTİR";
+
+    html +=
+      '<tr style="border-top:1px solid #e5eaf1">' +
+      '<td style="padding:8px"><b>' + (item.customer_name || "İsimsiz Müşteri") + '</b></td>' +
+      '<td>' + (item.phone || "-") + '</td>' +
+      '<td>' + failureRepName(item.representative_id) + '</td>' +
+      '<td>' + (item.customer_group || "-") + '</td>' +
+      '<td><b>' + (item.error_code || "Kod yok") + '</b><br><span style="font-size:11px;color:#66758c">' +
+      failureErrorText(item) + '</span></td>' +
+      '<td>' + Number(item.same_error_failures || 0) + ' kez</td>' +
+      '<td>' + Number(item.failed_campaign_count || 0) + '</td>' +
+      '<td>' + (item.failed_at ? new Date(item.failed_at).toLocaleString("tr-TR") : "-") + '</td>' +
+      '<td>' + (active ? "🟢 Aktif" : "🔴 Pasif") +
+      (isCandidate ? '<br><span style="font-size:10px;color:#94660b;font-weight:bold">PASİFE ALMA ADAYI</span>' : '') +
+      '</td>' +
+      '<td>' +
+      (item.customer_id
+        ? '<button type="button" style="padding:5px 7px;font-size:10px" onclick="changeFailureCustomerStatus(' +
+          item.customer_id + ', \'' + newStatus + '\')">' + buttonText + '</button>'
+        : '<span style="font-size:11px;color:#66758c">Müşteri kaydı yok</span>') +
+      '</td></tr>';
+  });
+
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+async function changeFailureCustomerStatus(id, newStatus) {
+  try {
+    var response = await fetch("/api/customer-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: id, status: newStatus })
+    });
+    var result = await response.json();
+
+    if (!response.ok) {
+      alert(result.error || "Müşteri durumu değiştirilemedi.");
+      return;
+    }
+
+    await loadFailureManagement();
+    await loadCustomerPortfolio();
+    refreshDashboardStats();
+  } catch (error) {
+    alert("Bağlantı hatası: " + error.message);
+  }
+}
+
 </script>
 </body>
 </html>
