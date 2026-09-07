@@ -955,6 +955,12 @@ app.get("/api/campaign-failures", async (req, res) => {
         COALESCE(ms.error_message, '') AS error_message,
         ms.failed_at,
 
+        c.id AS customer_id,
+        COALESCE(c.customer_name, '') AS customer_name,
+        COALESCE(c.status, '') AS customer_status,
+        COALESCE(c.representative_id, '') AS representative_id,
+        COALESCE(c.customer_group, '') AS customer_group,
+
         (
           SELECT COUNT(*)
           FROM message_statuses history
@@ -979,6 +985,9 @@ app.get("/api/campaign-failures", async (req, res) => {
         )::int AS failed_campaign_count
 
       FROM message_statuses ms
+
+      LEFT JOIN customers c
+        ON c.phone = ms.phone
 
       WHERE ms.failed_at IS NOT NULL
 
