@@ -111,7 +111,11 @@ button:hover{background:#f4f7fb}
       <h2 style="margin:0 0 4px">Hata Yönetimi</h2>
       <p style="margin:0">Tüm kampanyalardaki teslimat hatalarını filtreleyin ve müşteri durumunu yönetin.</p>
     </div>
-    <button type="button" onclick="loadFailureManagement()">HATALARI YENİLE</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" onclick="printFailureManagement()">🖨️ YAZDIR</button>
+      <button type="button" onclick="exportFailureManagementExcel()">📊 EXCEL'E AKTAR</button>
+      <button type="button" onclick="loadFailureManagement()">HATALARI YENİLE</button>
+    </div>
   </div>
 
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin:14px 0">
@@ -1102,6 +1106,7 @@ async function importCustomersFromExcel(input) {
 refreshDashboardStats();
 
 var failureManagementData = [];
+var failureManagementFilteredData = [];
 
 function failureRepName(id) {
   return {T1:"Ali Merter",T2:"Harun Merter",T3:"Muhammed Merter",T4:"İshak Merter"}[id] || id || "-";
@@ -1191,6 +1196,8 @@ function renderFailureManagement(){
       (!candidateOnly||isCandidate);
   });
 
+  failureManagementFilteredData = filtered.slice();
+
   var uniquePhones=new Set(filtered.map(function(x){return x.phone})).size;
   var candidatePhones=new Set(filtered.filter(function(x){return Number(x.failed_campaign_count||0)>=3}).map(function(x){return x.phone})).size;
   if(summary){
@@ -1220,6 +1227,59 @@ function renderFailureManagement(){
       '<td>'+(item.customer_id?'<button type="button" style="padding:5px 7px;font-size:10px" onclick="changeFailureCustomerStatus('+item.customer_id+', \''+newStatus+'\')">'+buttonText+'</button>':'<span style="font-size:11px;color:#66758c">Müşteri kaydı yok</span>')+'</td></tr>';
   });
   html+='</tbody></table></div>'; container.innerHTML=html;
+}
+
+function failureExportRows(){
+  return (failureManagementFilteredData||[]).map(function(item){
+    return {
+      "Müşteri": item.customer_name||"İsimsiz Müşteri",
+      "Telefon": item.phone||"-",
+      "Temsilci": failureRepName(item.representative_id),
+      "Grup": item.customer_group||"-",
+      "Hata Kodu": item.error_code||"Kod yok",
+      "Hata Açıklaması": failureErrorText(item),
+      "Tekrar": Number(item.same_error_failures||0),
+      "Farklı Kampanya": Number(item.failed_campaign_count||0),
+      "Son Hata": item.failed_at?new Date(item.failed_at).toLocaleString("tr-TR"):"-",
+      "Durum": item.customer_status==="active"?"Aktif":"Pasif",
+      "Pasife Alma Adayı": Number(item.failed_campaign_count||0)>=3?"Evet":"Hayır"
+    };
+  });
+}
+
+function xmlEscape(v){
+  return String(v==null?"":v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;");
+}
+
+function exportFailureManagementExcel(){
+  var rows=failureExportRows();
+  if(!rows.length){alert("Excel'e aktarılacak hata kaydı yok.");return;}
+  var headers=Object.keys(rows[0]);
+  var xml='<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>'+
+    '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">'+
+    '<Styles><Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#F2F2F2" ss:Pattern="Solid"/></Style></Styles><Worksheet ss:Name="Hata Yönetimi"><Table>';
+  xml+='<Row>'+headers.map(function(h){return '<Cell ss:StyleID="Header"><Data ss:Type="String">'+xmlEscape(h)+'</Data></Cell>';}).join('')+'</Row>';
+  rows.forEach(function(row){
+    xml+='<Row>'+headers.map(function(h){var v=row[h];var type=typeof v==="number"?"Number":"String";return '<Cell><Data ss:Type="'+type+'">'+xmlEscape(v)+'</Data></Cell>';}).join('')+'</Row>';
+  });
+  xml+='</Table></Worksheet></Workbook>';
+  var blob=new Blob(["\ufeff",xml],{type:"application/vnd.ms-excel;charset=utf-8"});
+  var url=URL.createObjectURL(blob);var a=document.createElement("a");a.href=url;
+  a.download="hata_yonetimi_"+new Date().toISOString().slice(0,10)+".xls";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+}
+
+function printFailureManagement(){
+  var rows=failureExportRows();
+  if(!rows.length){alert("Yazdırılacak hata kaydı yok.");return;}
+  var headers=Object.keys(rows[0]);
+  var win=window.open("","_blank");
+  if(!win){alert("Yazdırma penceresi açılamadı. Tarayıcı açılır pencere engelini kontrol edin.");return;}
+  var html='<!doctype html><html><head><meta charset="utf-8"><title>AYS Hata Yönetimi</title><style>body{font-family:Arial,sans-serif;font-size:11px;color:#111;margin:20px}h1{font-size:18px;margin:0 0 4px}p{margin:0 0 14px;color:#555}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:5px;text-align:left;vertical-align:top}th{background:#eee}@page{size:landscape;margin:10mm}</style></head><body>'+
+    '<h1>AYS Group - Hata Yönetimi</h1><p>Filtrelenmiş kayıtlar: '+rows.length+' | '+new Date().toLocaleString("tr-TR")+'</p><table><thead><tr>'+
+    headers.map(function(h){return '<th>'+xmlEscape(h)+'</th>';}).join('')+'</tr></thead><tbody>'+
+    rows.map(function(row){return '<tr>'+headers.map(function(h){return '<td>'+xmlEscape(row[h])+'</td>';}).join('')+'</tr>';}).join('')+
+    '</tbody></table><script>window.onload=function(){window.print();}<\/script></body></html>';
+  win.document.open();win.document.write(html);win.document.close();
 }
 
 async function changeFailureCustomerStatus(id, newStatus) {
