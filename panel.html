@@ -225,9 +225,56 @@ function refreshDashboardStats(){
         return;
       }
 
+      // Büyük ürün görsellerini tarayıcıda otomatik olarak Meta için güvenli boyuta indir.
+      // Görsel oranı korunur; küçük dosyalara dokunulmaz.
+      async function prepareCampaignImage(file) {
+        var MAX_BYTES = 4 * 1024 * 1024;
+        var MAX_DIMENSION = 2048;
+
+        if (file.size <= MAX_BYTES && (file.type === "image/jpeg" || file.type === "image/png")) {
+          return file;
+        }
+
+        var bitmap = await createImageBitmap(file);
+        var width = bitmap.width;
+        var height = bitmap.height;
+        var scale = Math.min(1, MAX_DIMENSION / Math.max(width, height));
+        var targetWidth = Math.max(1, Math.round(width * scale));
+        var targetHeight = Math.max(1, Math.round(height * scale));
+
+        var canvas = document.createElement("canvas");
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        var ctx = canvas.getContext("2d");
+        ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+        if (bitmap.close) bitmap.close();
+
+        var quality = 0.88;
+        var blob = await new Promise(function(resolve) {
+          canvas.toBlob(resolve, "image/jpeg", quality);
+        });
+
+        while (blob && blob.size > MAX_BYTES && quality > 0.55) {
+          quality -= 0.08;
+          blob = await new Promise(function(resolve) {
+            canvas.toBlob(resolve, "image/jpeg", quality);
+          });
+        }
+
+        if (!blob) throw new Error("Görsel hazırlanamadı.");
+
+        return new File([blob],
+          (file.name || "urun-gorseli").replace(/\.[^.]+$/, "") + ".jpg",
+          { type: "image/jpeg", lastModified: Date.now() }
+        );
+      }
+
+      durum.innerText = "Görsel hazırlanıyor...";
+      var preparedImage = await prepareCampaignImage(image);
+
       var formData = new FormData();
 
-      formData.append("image", image);
+      formData.append("image", preparedImage);
       formData.append("numbers", numbers);
 
       try {
