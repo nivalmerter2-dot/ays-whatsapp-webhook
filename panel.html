@@ -104,7 +104,6 @@ button:hover{background:#f4f7fb}
 <section id="view-pending" class="view"><h2 class="viewtitle">Bekleyen Yeni Müşteriler</h2><div class="card"><div id="pendingCustomers">Bekleyen müşteriler yükleniyor...</div></div></section>
 <section id="view-spam" class="view"><h2 class="viewtitle">Spam / Reddedilenler</h2><div class="card"><input id="rejectedSearch" type="text" placeholder="İsim veya telefon ara..." oninput="renderRejectedCustomers()" style="margin-bottom:10px"><div id="rejectedCustomers">Spam listesi yükleniyor...</div></div></section>
 <section id="view-reports" class="view"><h2 class="viewtitle">Kampanya Raporları</h2><div class="card"><button type="button" onclick="loadCampaignReports()" style="margin-bottom:10px">RAPORLARI YENİLE</button><div id="campaignReports">Kampanya raporları yükleniyor...</div>
-<div id="campaignFailureDetails" style="margin-top:15px"></div>
 
 <div style="border-top:1px solid #e5eaf1;margin-top:22px;padding-top:18px">
   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
@@ -820,183 +819,75 @@ setInterval(function () {
         loadPendingCustomers();
     }
 }, 300000);
-    async function loadCampaignReports() {
-  var container = document.getElementById("campaignReports");
+    var showOldCampaignReports = false;
 
+async function loadCampaignReports() {
+  var container = document.getElementById("campaignReports");
+  if (!container) return;
   try {
     container.innerHTML = "Kampanya raporları yükleniyor...";
-
     var response = await fetch("/api/campaign-reports");
     var data = await response.json();
-
     if (!response.ok || !data.success) {
-      container.innerHTML = "Kampanya raporları alınamadı.";
-      return;
+      container.innerHTML = "Kampanya raporları alınamadı."; return;
     }
-
     if (!data.campaigns || data.campaigns.length === 0) {
-      container.innerHTML = "Henüz kampanya raporu bulunmuyor.";
-      return;
+      container.innerHTML = "Henüz kampanya raporu bulunmuyor."; return;
     }
 
-    var html = "";
+    var campaigns = data.campaigns.slice().sort(function(a,b){
+      var ad=a.created_at?new Date(a.created_at).getTime():0;
+      var bd=b.created_at?new Date(b.created_at).getTime():0;
+      return bd!==ad ? bd-ad : Number(b.id||0)-Number(a.id||0);
+    });
 
-    data.campaigns.forEach(function (campaign) {
-      var target = Number(campaign.total_recipients || 0);
-      var accepted = Number(campaign.accepted_count || 0);
-      var initialFailed = Number(campaign.initial_failed_count || 0);
-      var sent = Number(campaign.sent_count || 0);
-      var delivered = Number(campaign.delivered_count || 0);
-      var read = Number(campaign.read_count || 0);
-      var deliveryFailed = Number(campaign.delivery_failed_count || 0);
-
-      var deliveryRate =
-        accepted > 0 ? ((delivered / accepted) * 100).toFixed(1) : "0.0";
-
-      var readRate =
-        delivered > 0 ? ((read / delivered) * 100).toFixed(1) : "0.0";
-
-      var failureRate =
-        accepted > 0 ? ((deliveryFailed / accepted) * 100).toFixed(1) : "0.0";
-
-      var dateText = campaign.created_at
-        ? new Date(campaign.created_at).toLocaleString("tr-TR")
-        : "-";
-
-      var campaignErrors = (data.error_summary || []).filter(function (item) {
-        return String(item.campaign_id) === String(campaign.id);
-      });
-
-      var errorHtml = "";
-
-      if (campaignErrors.length > 0) {
-        errorHtml = "<div style='margin-top:8px;'><strong>Hata Kodları:</strong>";
-      
-        campaignErrors.forEach(function (item) {
-          var turkishErrorMessages = {};
-          turkishErrorMessages["131049"] = "Meta, sağlıklı mesajlaşma etkileşimini korumak amacıyla bu mesajı teslim etmedi.";
-          var errorDescription = turkishErrorMessages[String(item.error_code)] || item.error_title || "Bilinmeyen Meta teslimat hatası";
-          errorHtml +=
-            "<div style='padding:4px 0;'>" +
-            "<strong>" + (item.error_code || "Kod yok") + "</strong>" +
-            " — " + item.error_count + " kişi" +
-           " — " + errorDescription +
-            "</div>";
+    function campaignCard(campaign) {
+      var target=Number(campaign.total_recipients||0), accepted=Number(campaign.accepted_count||0);
+      var initialFailed=Number(campaign.initial_failed_count||0), sent=Number(campaign.sent_count||0);
+      var delivered=Number(campaign.delivered_count||0), read=Number(campaign.read_count||0);
+      var deliveryFailed=Number(campaign.delivery_failed_count||0);
+      var deliveryRate=accepted>0?((delivered/accepted)*100).toFixed(1):"0.0";
+      var readRate=delivered>0?((read/delivered)*100).toFixed(1):"0.0";
+      var failureRate=accepted>0?((deliveryFailed/accepted)*100).toFixed(1):"0.0";
+      var dateText=campaign.created_at?new Date(campaign.created_at).toLocaleString("tr-TR"):"-";
+      var campaignErrors=(data.error_summary||[]).filter(function(item){return String(item.campaign_id)===String(campaign.id)});
+      var errorHtml="";
+      if(campaignErrors.length){
+        errorHtml="<div style='margin-top:8px;'><strong>Hata Kodları:</strong>";
+        campaignErrors.forEach(function(item){
+          var messages={"131049":"Meta, sağlıklı mesajlaşma etkileşimini korumak amacıyla bu mesajı teslim etmedi."};
+          var desc=messages[String(item.error_code)]||item.error_title||"Bilinmeyen Meta teslimat hatası";
+          errorHtml+="<div style='padding:4px 0;'><strong>"+(item.error_code||"Kod yok")+"</strong> — "+item.error_count+" kişi — "+desc+"</div>";
         });
-
-        errorHtml += "</div>";
+        errorHtml+="</div>";
       }
+      return "<div style='border:1px solid #ddd;border-radius:8px;padding:12px;margin-bottom:12px;'>"+
+        "<div style='font-size:16px;font-weight:bold;margin-bottom:8px;'>Kampanya #"+campaign.id+" — "+dateText+"</div>"+
+        "<div><strong>Hedef:</strong> "+target+"</div>"+
+        "<div><strong>Meta kabul:</strong> "+accepted+"</div>"+
+        "<div><strong>Başlangıçta başarısız / atlanan:</strong> "+initialFailed+"</div>"+
+        "<div><strong>Gönderildi:</strong> "+sent+"</div>"+
+        "<div><strong>Teslim edildi:</strong> "+delivered+" (%"+deliveryRate+")</div>"+
+        "<div><strong>Okundu:</strong> "+read+" (%"+readRate+")</div>"+
+        "<div><strong>Teslim edilemedi:</strong> "+deliveryFailed+" (%"+failureRate+")</div>"+errorHtml+"</div>";
+    }
 
-      html +=
-        "<div style='border:1px solid #ddd; border-radius:8px; padding:12px; margin-bottom:12px;'>" +
-          "<div style='font-size:16px; font-weight:bold; margin-bottom:8px;'>" +
-            "Kampanya #" + campaign.id + " — " + dateText +
-          "</div>" +
-
-          "<div><strong>Hedef:</strong> " + target + "</div>" +
-          "<div><strong>Meta kabul:</strong> " + accepted + "</div>" +
-          "<div><strong>Başlangıçta başarısız / atlanan:</strong> " + initialFailed + "</div>" +
-          "<div><strong>Gönderildi:</strong> " + sent + "</div>" +
-          "<div><strong>Teslim edildi:</strong> " + delivered +
-            " (%" + deliveryRate + ")</div>" +
-          "<div><strong>Okundu:</strong> " + read +
-            " (%" + readRate + ")</div>" +
-          "<div><strong>Teslim edilemedi:</strong> " + deliveryFailed +
-            " (%" + failureRate + ")</div>" +
-
-          errorHtml +
-
-          "<button type='button' " +
-            "onclick='showCampaignFailures(" + campaign.id + ")' " +
-            "style='margin-top:10px;'>" +
-            "HATA VEREN NUMARALARI GÖSTER" +
-          "</button>" +
-        "</div>";
-    });
-
-    container.innerHTML = html;
-
-  } catch (error) {
-    console.error("Kampanya raporu bağlantı hatası:", error);
-    container.innerHTML = "Kampanya raporları yüklenirken bağlantı hatası oluştu.";
+    var html=campaignCard(campaigns[0]);
+    if(campaigns.length>1){
+      html+="<button type='button' onclick='toggleOldCampaignReports()' style='margin:2px 0 12px'>"+
+        (showOldCampaignReports?"ESKİ KAMPANYALARI GİZLE":"ESKİ KAMPANYALARI GÖSTER ("+(campaigns.length-1)+")")+"</button>";
+      if(showOldCampaignReports) html+="<div style='margin-top:4px'>"+campaigns.slice(1).map(campaignCard).join("")+"</div>";
+    }
+    container.innerHTML=html;
+  } catch(error) {
+    console.error("Kampanya raporu bağlantı hatası:",error);
+    container.innerHTML="Kampanya raporları yüklenirken bağlantı hatası oluştu.";
   }
 }
 
-
-async function showCampaignFailures(campaignId) {
-  var button = document.querySelector("button[onclick='showCampaignFailures(" + campaignId + ")']");
-  var campaignCard = button ? button.closest("div[style*='border:1px solid #ddd']") : null;
-
-  var container = document.getElementById("campaignFailureDetails");
-
-  if (campaignCard) {
-    if (!container) {
-      container = document.createElement("div");
-      container.id = "campaignFailureDetails";
-    }
-    container.style.marginTop = "12px";
-    campaignCard.appendChild(container);
-  }
-
-  try {
-    container.innerHTML = "Hata veren numaralar yükleniyor...";
-
-    var response = await fetch("/api/campaign-failures");
-    var data = await response.json();
-
-    if (!response.ok || !data.success) {
-      container.innerHTML = "Hata detayları alınamadı.";
-      return;
-    }
-
-    var failures = (data.failures || []).filter(function (item) {
-      return String(item.campaign_id) === String(campaignId);
-    });
-
-    if (failures.length === 0) {
-      container.innerHTML =
-        "<div style='padding:10px; border:1px solid #ddd;'>" +
-        "Bu kampanyada Meta teslimat hatası görünmüyor." +
-        "</div>";
-      return;
-    }
-
-    var html =
-      "<div style='border:1px solid #bbb; border-radius:8px; padding:12px;'>" +
-      "<h2>Kampanya #" + campaignId + " — Hata Veren Numaralar</h2>";
-
-    failures.forEach(function (item) {
-      html +=
-        "<div style='padding:10px 0; border-bottom:1px solid #ddd;'>" +
-          "<strong>Telefon:</strong> " + (item.phone || "-") + "<br>" +
-          "<strong>Hata kodu:</strong> " + (item.error_code || "Kod yok") + "<br>" +
-          "<strong>Açıklama:</strong> " +
-            (item.error_title || item.error_message || "-") + "<br>" +
-          "<strong>Toplam teslimat hatası:</strong> " +
-            item.total_failures + "<br>" +
-          "<strong>Aynı hata kodu:</strong> " +
-            item.same_error_failures + " kez<br>" +
-          "<strong>Hata yaşadığı kampanya:</strong> " +
-            item.failed_campaign_count + " farklı kampanya" +
-        "</div>";
-    });
-
-    html +=
-      "<button type='button' onclick='closeCampaignFailures()' " +
-      "style='margin-top:10px;'>DETAYI KAPAT</button>" +
-      "</div>";
-
-    container.innerHTML = html;
-
-  } catch (error) {
-    console.error("Hata detayları bağlantı hatası:", error);
-    container.innerHTML = "Hata detayları yüklenirken bağlantı hatası oluştu.";
-  }
-}
-
-
-function closeCampaignFailures() {
-  document.getElementById("campaignFailureDetails").innerHTML = "";
+function toggleOldCampaignReports(){
+  showOldCampaignReports=!showOldCampaignReports;
+  loadCampaignReports();
 }
 
 loadCampaignReports();
@@ -1213,151 +1104,122 @@ refreshDashboardStats();
 var failureManagementData = [];
 
 function failureRepName(id) {
-  return {
-    T1: "Ali Merter",
-    T2: "Harun Merter",
-    T3: "Muhammed Merter",
-    T4: "İshak Merter"
-  }[id] || id || "-";
+  return {T1:"Ali Merter",T2:"Harun Merter",T3:"Muhammed Merter",T4:"İshak Merter"}[id] || id || "-";
 }
-
 function failureErrorText(item) {
-  var messages = {
-    "131026": "Mesaj teslim edilemedi. Tekrarlayan kayıtları kampanya geçmişiyle birlikte takip edin.",
-    "130472": "Meta deney / gönderim kısıtlaması. Tek başına pasife alma nedeni değildir.",
-    "131049": "Meta, sağlıklı mesajlaşma etkileşimini korumak amacıyla pazarlama mesajını teslim etmedi."
+  var messages={
+    "131026":"Mesaj teslim edilemedi. Tekrarlayan kayıtları kampanya geçmişiyle birlikte takip edin.",
+    "130472":"Meta deney / gönderim kısıtlaması. Tek başına pasife alma nedeni değildir.",
+    "131049":"Meta, sağlıklı mesajlaşma etkileşimini korumak amacıyla pazarlama mesajını teslim etmedi."
   };
-  return messages[String(item.error_code || "")] ||
-    item.error_title || item.error_message || "Bilinmeyen Meta teslimat hatası";
+  return messages[String(item.error_code||"")]||item.error_title||item.error_message||"Bilinmeyen Meta teslimat hatası";
+}
+function isOtherFailureCode(code){
+  code=String(code||""); return code!=="131026"&&code!=="130472"&&code!=="131049";
 }
 
-function isOtherFailureCode(code) {
-  code = String(code || "");
-  return code !== "131026" && code !== "130472" && code !== "131049";
-}
-
-async function loadFailureManagement() {
-  var container = document.getElementById("failureManagement");
-  if (!container) return;
-
-  try {
-    container.innerHTML = "Hata kayıtları yükleniyor...";
-    var response = await fetch("/api/campaign-failures");
-    var data = await response.json();
-
-    if (!response.ok || !data.success) {
-      container.innerHTML = "Hata kayıtları alınamadı.";
-      return;
+function summarizeFailureManagement(rows){
+  var grouped=new Map();
+  (rows||[]).forEach(function(item){
+    var phone=String(item.phone||"").replace(/\D/g,"");
+    var errorCode=String(item.error_code||"Kod yok");
+    var key=(phone||("customer:"+String(item.customer_id||item.customer_name||"unknown")))+"|"+errorCode;
+    var current=grouped.get(key);
+    var itemDate=item.failed_at?new Date(item.failed_at).getTime():0;
+    if(!current){
+      current=Object.assign({},item,{
+        phone:item.phone||phone,
+        same_error_failures:Number(item.same_error_failures||1),
+        failed_campaign_count:Number(item.failed_campaign_count||0),
+        _campaigns:new Set(),
+        _latestTime:itemDate
+      });
+      grouped.set(key,current);
+    }else{
+      current.same_error_failures=Math.max(Number(current.same_error_failures||0),Number(item.same_error_failures||1));
+      current.failed_campaign_count=Math.max(Number(current.failed_campaign_count||0),Number(item.failed_campaign_count||0));
+      if(itemDate>=current._latestTime){
+        current._latestTime=itemDate;
+        ["failed_at","customer_name","representative_id","customer_group","customer_status","customer_id","error_title","error_message"].forEach(function(k){
+          if(item[k]!==undefined&&item[k]!==null&&item[k]!=="") current[k]=item[k];
+        });
+      }
     }
+    if(item.campaign_id!==undefined&&item.campaign_id!==null&&item.campaign_id!=="") current._campaigns.add(String(item.campaign_id));
+  });
+  return Array.from(grouped.values()).map(function(item){
+    if(item._campaigns.size) item.failed_campaign_count=Math.max(Number(item.failed_campaign_count||0),item._campaigns.size);
+    delete item._campaigns; delete item._latestTime; return item;
+  }).sort(function(a,b){
+    return (b.failed_at?new Date(b.failed_at).getTime():0)-(a.failed_at?new Date(a.failed_at).getTime():0);
+  });
+}
 
-    failureManagementData = data.failures || [];
+async function loadFailureManagement(){
+  var container=document.getElementById("failureManagement"); if(!container)return;
+  try{
+    container.innerHTML="Hata kayıtları yükleniyor...";
+    var response=await fetch("/api/campaign-failures"); var data=await response.json();
+    if(!response.ok||!data.success){container.innerHTML="Hata kayıtları alınamadı.";return;}
+    failureManagementData=summarizeFailureManagement(data.failures||[]);
     renderFailureManagement();
-  } catch (error) {
-    console.error("Hata yönetimi bağlantı hatası:", error);
-    container.innerHTML = "Hata kayıtları yüklenirken bağlantı hatası oluştu.";
+  }catch(error){
+    console.error("Hata yönetimi bağlantı hatası:",error);
+    container.innerHTML="Hata kayıtları yüklenirken bağlantı hatası oluştu.";
   }
 }
 
-function renderFailureManagement() {
-  var container = document.getElementById("failureManagement");
-  var summary = document.getElementById("failureManagementSummary");
-  if (!container) return;
+function renderFailureManagement(){
+  var container=document.getElementById("failureManagement");
+  var summary=document.getElementById("failureManagementSummary"); if(!container)return;
+  var search=(document.getElementById("failureSearch")?.value||"").toLocaleLowerCase("tr-TR").trim();
+  var code=document.getElementById("failureCodeFilter")?.value||"";
+  var rep=document.getElementById("failureRepFilter")?.value||"";
+  var status=document.getElementById("failureStatusFilter")?.value||"";
+  var repeat=Number(document.getElementById("failureRepeatFilter")?.value||0);
+  var campaignCount=Number(document.getElementById("failureCampaignCountFilter")?.value||0);
+  var candidateOnly=document.getElementById("failureCandidateFilter")?.value==="candidate";
 
-  var search = (document.getElementById("failureSearch")?.value || "")
-    .toLocaleLowerCase("tr-TR").trim();
-  var code = document.getElementById("failureCodeFilter")?.value || "";
-  var rep = document.getElementById("failureRepFilter")?.value || "";
-  var status = document.getElementById("failureStatusFilter")?.value || "";
-  var repeat = Number(document.getElementById("failureRepeatFilter")?.value || 0);
-  var campaignCount = Number(document.getElementById("failureCampaignCountFilter")?.value || 0);
-  var candidateOnly = document.getElementById("failureCandidateFilter")?.value === "candidate";
-
-  var filtered = failureManagementData.filter(function(item) {
-    var name = String(item.customer_name || "").toLocaleLowerCase("tr-TR");
-    var phone = String(item.phone || "");
-    var isCandidate =
-      String(item.error_code || "") === "131026" &&
-      Number(item.failed_campaign_count || 0) >= 3;
-
-    var codeMatches =
-      !code ||
-      (code === "other"
-        ? isOtherFailureCode(item.error_code)
-        : String(item.error_code || "") === code);
-
-    return (!search || name.includes(search) || phone.includes(search)) &&
-      codeMatches &&
-      (!rep || item.representative_id === rep) &&
-      (!status || item.customer_status === status) &&
-      Number(item.same_error_failures || 0) >= repeat &&
-      Number(item.failed_campaign_count || 0) >= campaignCount &&
-      (!candidateOnly || isCandidate);
+  var filtered=failureManagementData.filter(function(item){
+    var name=String(item.customer_name||"").toLocaleLowerCase("tr-TR");
+    var phone=String(item.phone||"");
+    var isCandidate=Number(item.failed_campaign_count||0)>=3;
+    var codeMatches=!code||(code==="other"?isOtherFailureCode(item.error_code):String(item.error_code||"")===code);
+    return (!search||name.includes(search)||phone.includes(search))&&codeMatches&&
+      (!rep||item.representative_id===rep)&&(!status||item.customer_status===status)&&
+      Number(item.same_error_failures||0)>=repeat&&Number(item.failed_campaign_count||0)>=campaignCount&&
+      (!candidateOnly||isCandidate);
   });
 
-  var uniquePhones = new Set(filtered.map(function(x) { return x.phone; })).size;
-  var candidates = filtered.filter(function(x) {
-    return String(x.error_code || "") === "131026" &&
-      Number(x.failed_campaign_count || 0) >= 3;
-  }).length;
-
-  if (summary) {
-    summary.innerHTML =
-      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
-      '<div style="padding:9px 12px;background:#f8fafc;border:1px solid #e5eaf1;border-radius:8px"><b>' +
-      filtered.length + '</b> hata kaydı</div>' +
-      '<div style="padding:9px 12px;background:#f8fafc;border:1px solid #e5eaf1;border-radius:8px"><b>' +
-      uniquePhones + '</b> farklı müşteri</div>' +
-      '<div style="padding:9px 12px;background:#fff6df;border:1px solid #f0dfae;border-radius:8px"><b>' +
-      candidates + '</b> pasife alma adayı</div>' +
-      '</div>';
+  var uniquePhones=new Set(filtered.map(function(x){return x.phone})).size;
+  var candidatePhones=new Set(filtered.filter(function(x){return Number(x.failed_campaign_count||0)>=3}).map(function(x){return x.phone})).size;
+  if(summary){
+    summary.innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+      '<div style="padding:9px 12px;background:#f8fafc;border:1px solid #e5eaf1;border-radius:8px"><b>'+filtered.length+'</b> müşteri / hata kodu kaydı</div>'+
+      '<div style="padding:9px 12px;background:#f8fafc;border:1px solid #e5eaf1;border-radius:8px"><b>'+uniquePhones+'</b> farklı müşteri</div>'+
+      '<div style="padding:9px 12px;background:#fff6df;border:1px solid #f0dfae;border-radius:8px"><b>'+candidatePhones+'</b> pasife alma adayı</div></div>';
   }
+  if(!filtered.length){container.innerHTML="Filtreye uygun hata kaydı bulunamadı.";return;}
 
-  if (!filtered.length) {
-    container.innerHTML = "Filtreye uygun hata kaydı bulunamadı.";
-    return;
-  }
+  var html='<div style="overflow:auto;border:1px solid #e5eaf1;border-radius:9px"><table style="width:100%;border-collapse:collapse;min-width:1050px">'+
+    '<thead><tr style="background:#f8fafc"><th style="padding:8px">Müşteri</th><th>Telefon</th><th>Temsilci</th><th>Grup</th>'+
+    '<th>Hata</th><th>Tekrar</th><th>Farklı Kampanya</th><th>Son Hata</th><th>Durum</th><th>İşlem</th></tr></thead><tbody>';
 
-  var html =
-    '<div style="overflow:auto;border:1px solid #e5eaf1;border-radius:9px">' +
-    '<table style="width:100%;border-collapse:collapse;min-width:1050px">' +
-    '<thead><tr style="background:#f8fafc">' +
-    '<th style="padding:8px">Müşteri</th><th>Telefon</th><th>Temsilci</th><th>Grup</th>' +
-    '<th>Hata</th><th>Aynı Hata</th><th>Farklı Kampanya</th><th>Son Hata</th>' +
-    '<th>Durum</th><th>İşlem</th></tr></thead><tbody>';
-
-  filtered.forEach(function(item) {
-    var isCandidate =
-      String(item.error_code || "") === "131026" &&
-      Number(item.failed_campaign_count || 0) >= 3;
-
-    var active = item.customer_status === "active";
-    var newStatus = active ? "passive" : "active";
-    var buttonText = active ? "PASİFE AL" : "AKTİFLEŞTİR";
-
-    html +=
-      '<tr style="border-top:1px solid #e5eaf1">' +
-      '<td style="padding:8px"><b>' + (item.customer_name || "İsimsiz Müşteri") + '</b></td>' +
-      '<td>' + (item.phone || "-") + '</td>' +
-      '<td>' + failureRepName(item.representative_id) + '</td>' +
-      '<td>' + (item.customer_group || "-") + '</td>' +
-      '<td><b>' + (item.error_code || "Kod yok") + '</b><br><span style="font-size:11px;color:#66758c">' +
-      failureErrorText(item) + '</span></td>' +
-      '<td>' + Number(item.same_error_failures || 0) + ' kez</td>' +
-      '<td>' + Number(item.failed_campaign_count || 0) + '</td>' +
-      '<td>' + (item.failed_at ? new Date(item.failed_at).toLocaleString("tr-TR") : "-") + '</td>' +
-      '<td>' + (active ? "🟢 Aktif" : "🔴 Pasif") +
-      (isCandidate ? '<br><span style="font-size:10px;color:#94660b;font-weight:bold">PASİFE ALMA ADAYI</span>' : '') +
-      '</td>' +
-      '<td>' +
-      (item.customer_id
-        ? '<button type="button" style="padding:5px 7px;font-size:10px" onclick="changeFailureCustomerStatus(' +
-          item.customer_id + ', \'' + newStatus + '\')">' + buttonText + '</button>'
-        : '<span style="font-size:11px;color:#66758c">Müşteri kaydı yok</span>') +
-      '</td></tr>';
+  filtered.forEach(function(item){
+    var isCandidate=Number(item.failed_campaign_count||0)>=3;
+    var active=item.customer_status==="active";
+    var newStatus=active?"passive":"active";
+    var buttonText=active?"PASİFE AL":"AKTİFLEŞTİR";
+    html+='<tr style="border-top:1px solid #e5eaf1">'+
+      '<td style="padding:8px"><b>'+(item.customer_name||"İsimsiz Müşteri")+'</b></td>'+
+      '<td>'+(item.phone||"-")+'</td><td>'+failureRepName(item.representative_id)+'</td><td>'+(item.customer_group||"-")+'</td>'+
+      '<td><b>'+(item.error_code||"Kod yok")+'</b><br><span style="font-size:11px;color:#66758c">'+failureErrorText(item)+'</span></td>'+
+      '<td><b>'+Number(item.same_error_failures||0)+' kez</b></td><td>'+Number(item.failed_campaign_count||0)+'</td>'+
+      '<td>'+(item.failed_at?new Date(item.failed_at).toLocaleString("tr-TR"):"-")+'</td>'+
+      '<td>'+(active?"🟢 Aktif":"🔴 Pasif")+(isCandidate?'<br><span style="font-size:10px;color:#94660b;font-weight:bold">PASİFE ALMA ADAYI</span>':'')+'</td>'+
+      '<td>'+(item.customer_id?'<button type="button" style="padding:5px 7px;font-size:10px" onclick="changeFailureCustomerStatus('+item.customer_id+', \''+newStatus+'\')">'+buttonText+'</button>':'<span style="font-size:11px;color:#66758c">Müşteri kaydı yok</span>')+'</td></tr>';
   });
-
-  html += '</tbody></table></div>';
-  container.innerHTML = html;
+  html+='</tbody></table></div>'; container.innerHTML=html;
 }
 
 async function changeFailureCustomerStatus(id, newStatus) {
