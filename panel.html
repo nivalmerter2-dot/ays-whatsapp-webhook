@@ -112,11 +112,29 @@ button:hover{background:#f4f7fb}
       <p style="margin:0">Tüm kampanyalardaki teslimat hatalarını filtreleyin ve müşteri durumunu yönetin.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button type="button" onclick="printFailureManagement()">🖨️ YAZDIR</button>
-      <button type="button" onclick="exportFailureManagementExcel()">📊 EXCEL'E AKTAR</button>
-      <button type="button" onclick="loadFailureManagement()">HATALARI YENİLE</button>
-    </div>
-  </div>
+  <button type="button" onclick="printFailureManagement()">🖨 YAZDIR</button>
+  <button type="button" onclick="exportFailureManagementExcel()">📊 EXCEL'E AKTAR</button>
+
+  <button
+    type="button"
+    onclick="bulkFailureCustomerStatus('passive')"
+    style="font-weight:700"
+  >
+    TÜMÜNÜ PASİF AL
+  </button>
+
+  <button
+    type="button"
+    onclick="bulkFailureCustomerStatus('active')"
+    style="font-weight:700"
+  >
+    TÜMÜNÜ AKTİFLEŞTİR
+  </button>
+
+  <button type="button" onclick="loadFailureManagement()">
+    HATALARI YENİLE
+  </button>
+</div>
 
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin:14px 0">
     <input id="failureSearch" type="text" placeholder="İsim veya telefon ara..." oninput="renderFailureManagement()" style="min-width:210px;flex:2">
@@ -1282,6 +1300,96 @@ function printFailureManagement(){
   win.document.open();win.document.write(html);win.document.close();
 }
 
+  async function bulkFailureCustomerStatus(newStatus) {
+  try {
+    var rows = Array.isArray(failureManagementFilteredData)
+      ? failureManagementFilteredData
+      : [];
+
+    if (rows.length === 0) {
+      alert("İşlem yapılabilecek filtrelenmiş müşteri bulunamadı.");
+      return;
+    }
+
+    var uniqueIds = [
+      ...new Set(
+        rows
+          .map(function(item) {
+            return Number(item.customer_id);
+          })
+          .filter(function(id) {
+            return Number.isInteger(id) && id > 0;
+          })
+      )
+    ];
+
+    if (uniqueIds.length === 0) {
+      alert("İşlem yapılabilecek müşteri bulunamadı.");
+      return;
+    }
+
+    var actionText =
+      newStatus === "passive"
+        ? "PASİFE ALMAK"
+        : "AKTİFLEŞTİRMEK";
+
+    var confirmed = confirm(
+      "Filtredeki " +
+      uniqueIds.length +
+      " farklı müşteriyi " +
+      actionText +
+      " istediğinize emin misiniz?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    var response = await fetch("/api/customers/bulk-status", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        ids: uniqueIds,
+        status: newStatus
+      })
+    });
+
+    var result = await response.json();
+
+    if (!response.ok || !result.success) {
+      alert(
+        result.error ||
+        "Toplu müşteri durum değişikliği yapılamadı."
+      );
+      return;
+    }
+
+    alert(
+      result.updated +
+      " müşteri " +
+      (newStatus === "passive"
+        ? "pasife alındı."
+        : "aktifleştirildi.")
+    );
+
+    await loadFailureManagement();
+    await loadCustomerPortfolio();
+    refreshDashboardStats();
+
+  } catch (error) {
+    console.error(
+      "Toplu hata yönetimi işlem hatası:",
+      error
+    );
+
+    alert(
+      "Toplu işlem sırasında hata oluştu: " +
+      error.message
+    );
+  }
+}
 async function changeFailureCustomerStatus(id, newStatus) {
   try {
     var response = await fetch("/api/customer-status", {
