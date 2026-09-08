@@ -409,6 +409,17 @@ await pool.query(`
   );
 `);
   await pool.query(`
+  CREATE TABLE IF NOT EXISTS campaign_button_choices (
+    id SERIAL PRIMARY KEY,
+    phone VARCHAR(30) NOT NULL,
+    campaign_id INTEGER NOT NULL,
+    choice VARCHAR(30) NOT NULL,
+    inbound_wamid TEXT,
+    chosen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(phone, campaign_id)
+  );
+`);
+  await pool.query(`
   CREATE TABLE IF NOT EXISTS campaigns (
     id SERIAL PRIMARY KEY,
     total_recipients INTEGER NOT NULL DEFAULT 0,
@@ -572,6 +583,83 @@ CASE WHEN $3::VARCHAR = 'failed' THEN CURRENT_TIMESTAMP ELSE NULL END,
   "";
 
 const normalizedButtonText = buttonText.toLocaleLowerCase("tr-TR");
+
+    const isStopButton =
+  buttonText === "MESAJ ALMAK İSTEMİYORUM" ||
+  normalizedButtonText.includes("stop messages") ||
+  normalizedButtonText.includes("إيقاف");
+
+const isContactButton =
+  buttonText === "MÜŞTERİ TEMSİLCİSİNE ULAŞ" ||
+  buttonText === "Contact Agent / تواصل مع المندوب";
+
+if (isStopButton || isContactButton) {
+  const repliedToWamid = message?.context?.id || null;
+
+  if (!repliedToWamid) {
+    console.warn(
+      "Buton yanıtında context.id yok; işlem yapılmadı:",
+      phone
+    );
+    return;
+  }
+
+  const campaignLookup = await pool.query(
+    `SELECT campaign_id
+     FROM message_statuses
+     WHERE wamid = $1
+       AND phone = $2
+       AND campaign_id IS NOT NULL
+     LIMIT 1`,
+    [repliedToWamid, phone]
+  );
+
+  if (campaignLookup.rows.length === 0) {
+    console.warn(
+      "Butonun kampanyası bulunamadı; işlem yapılmadı:",
+      phone,
+      repliedToWamid
+    );
+    return;
+  }
+
+  const buttonCampaignId =
+    campaignLookup.rows[0].campaign_id;
+
+  const choice =
+    isStopButton ? "stop" : "contact";
+
+  const firstChoiceResult = await pool.query(
+    `INSERT INTO campaign_button_choices
+       (phone, campaign_id, choice, inbound_wamid)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (phone, campaign_id) DO NOTHING
+     RETURNING id`,
+    [
+      phone,
+      buttonCampaignId,
+      choice,
+      message?.id || null
+    ]
+  );
+
+  if (firstChoiceResult.rows.length === 0) {
+    console.log(
+      "Aynı kampanyada ikinci buton seçimi yok sayıldı:",
+      phone,
+      buttonCampaignId,
+      choice
+    );
+    return;
+  }
+
+  console.log(
+    "Kampanya için ilk buton seçimi kaydedildi:",
+    phone,
+    buttonCampaignId,
+    choice
+  );
+}
 
 if (
   buttonText === "MESAJ ALMAK İSTEMİYORUM" ||
