@@ -1544,6 +1544,72 @@ app.post("/api/customer-status", async (req, res) => {
     });
   }
 });
+app.post("/api/customers/bulk-status", async (req, res) => {
+  const { ids, status } = req.body;
+
+  if (
+    !Array.isArray(ids) ||
+    ids.length === 0 ||
+    !["active", "passive"].includes(status)
+  ) {
+    return res.status(400).json({
+      success: false,
+      error: "Geçersiz müşteri listesi veya durum bilgisi."
+    });
+  }
+
+  const numericIds = [
+    ...new Set(
+      ids
+        .map(id => Number(id))
+        .filter(id => Number.isInteger(id) && id > 0)
+    )
+  ];
+
+  if (numericIds.length === 0) {
+    return res.status(400).json({
+      success: false,
+      error: "İşlem yapılabilecek müşteri bulunamadı."
+    });
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE customers
+       SET status = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ANY($2::int[])
+       RETURNING id, phone, customer_name, status`,
+      [status, numericIds]
+    );
+
+    console.log(
+      "Toplu müşteri durum değişikliği:",
+      status,
+      result.rows.length,
+      "müşteri"
+    );
+
+    return res.json({
+      success: true,
+      requested: numericIds.length,
+      updated: result.rows.length,
+      status: status,
+      customers: result.rows
+    });
+
+  } catch (error) {
+    console.error(
+      "Toplu müşteri durum değişikliği hatası:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      error: "Müşterilerin durumu toplu olarak değiştirilemedi."
+    });
+  }
+});
 app.post("/api/customer-delete", async (req, res) => {
   const { id } = req.body;
 
